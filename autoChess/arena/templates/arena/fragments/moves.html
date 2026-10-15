@@ -1,0 +1,36 @@
+<div class="flex items-center justify-between mb-2">
+  <div class="text-lg font-semibold">Moves</div>
+  <div class="text-sm text-slate-600">
+    {% if game.status == "FINISHED" %}
+      <span class="font-semibold">{{ game.result }}</span> ({{ game.termination_reason }})
+    {% else %}
+      Status: {{ game.status }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+  <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+    <div class="text-xs text-slate-600 mb-2">UCI move list (SAN/PGN in a later phase)</div>
+    <div class="font-mono text-sm leading-6">
+      {% for m in moves %}
+        <div>{{ m.ply_index }}. {{ m.uci }}{% if m.is_check %} +{% endif %}</div>
+      {% empty %}
+        <div class="text-slate-600">No moves yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+    <div class="text-xs text-slate-600 mb-2">State</div>
+    <ul class="text-sm text-slate-800 space-y-1">
+      <li>Status: <span class="font-semibold">{{ game.status }}</span></li>
+      <li>Plies: <span class="font-semibold">{{ game.ply_count }}</span></li>
+      <li>Side to move: <span class="font-semibold">{% if game.side_to_move == "w" %}White{% else %}Black{% endif %}</span></li>
+      {% if game.status == "FINISHED" %}
+        <li>Result: <span class="font-semibold">{{ game.result }}</span></li>
+        <li>Termination reason: <span class="font-semibold">{{ game.termination_reason }}</span></li>
+      {% endif %}
+    </ul>
+  </div>
+</div>

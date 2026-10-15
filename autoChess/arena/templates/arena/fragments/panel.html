@@ -1,0 +1,106 @@
+<div class="panel-root flex flex-col flex-1 min-h-0">
+<div class="panel-head">
+  <div class="panel-head-main">
+    <div class="panel-title">{{ side_label }}</div>
+    <div class="panel-subtitle">
+      Engine type:
+      <span class="font-semibold" data-engine-type-label>{{ cfg.engine_type }}</span>
+    </div>
+    {% if cfg.player %}
+    <div class="panel-subtitle">
+      <a class="underline" href="{% url 'arena:player_detail' player_id=cfg.player.id %}">{{ cfg.player.name }}</a>
+      · <span class="font-semibold">{{ cfg.player.elo_rating|floatformat:0 }}</span> Elo
+      · <span class="font-semibold">{{ cfg.player.bayeselo_rating|floatformat:0 }}</span> BayesElo
+    </div>
+    {% endif %}
+  </div>
+
+  <div id="turn-indicator-{{ side|lower }}" class="turn-indicator">
+    {% if game.side_to_move == "w" and side == "WHITE" or game.side_to_move == "b" and side == "BLACK" %}
+      <span class="turn-badge">TO MOVE</span>
+    {% endif %}
+  </div>
+</div>
+
+<form
+  data-engine-config
+  hx-post="{% url 'arena:update_config' game_id=game.id %}"
+  hx-trigger="change delay:150ms"
+  hx-swap="none"
+  class="space-y-3 flex flex-col flex-1 min-h-0">
+  {% csrf_token %}
+  <input type="hidden" name="side" value="{{ side }}" />
+
+  <div>
+    <label class="block text-sm text-slate-600 mb-1">Engine type</label>
+    <select data-engine-type-select name="engine_type" class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2">
+      <option value="STOCKFISH" {% if cfg.engine_type == "STOCKFISH" %}selected{% endif %}>Stockfish</option>
+      <option value="PYCHESS" {% if cfg.engine_type == "PYCHESS" %}selected{% endif %}>PyChess (python-chess)</option>
+      <option value="PLAYER" {% if cfg.engine_type == "PLAYER" %}selected{% endif %}>Player</option>
+    </select>
+  </div>
+
+  <div class="flex-1"></div>
+
+  <div data-player-params class="{% if cfg.engine_type == 'PLAYER' %}opacity-50{% endif %}">
+    <div>
+      <label class="block text-sm text-slate-600 mb-1">Strength mode</label>
+      <select
+        data-strength-mode
+        name="strength_mode"
+        class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2"
+        {% if cfg.engine_type == "PLAYER" %}disabled{% endif %}
+      >
+        <option value="SKILL" {% if cfg.strength_mode == "SKILL" %}selected{% endif %}>Skill (1–20)</option>
+        <option value="ELO" {% if cfg.strength_mode == "ELO" %}selected{% endif %}>Elo (800–3200)</option>
+      </select>
+    </div>
+
+    <div class="pt-2">
+      <label class="block text-sm text-slate-600 mb-1">Strength value</label>
+      <div class="flex items-center gap-3">
+        <input
+          data-strength-value
+          name="strength_value"
+          type="range"
+          value="{{ cfg.strength_value }}"
+          {% if cfg.strength_mode == "ELO" %}
+            min="800" max="3200" step="50"
+          {% else %}
+            min="1" max="20" step="1"
+          {% endif %}
+          class="w-full"
+          {% if cfg.engine_type == "PLAYER" %}disabled{% endif %}
+        />
+        <span data-strength-display class="w-14 text-right font-mono text-sm text-slate-800">{{ cfg.strength_value }}</span>
+      </div>
+      <div data-strength-hint class="text-xs text-slate-600 mt-1">
+        {% if cfg.engine_type == "PLAYER" %}
+          In player mode these settings do not apply.
+        {% else %}
+          {% if cfg.strength_mode == "ELO" %}Elo: 800–3200{% else %}Skill: 1–20{% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="pt-2">
+      <label class="block text-sm text-slate-600 mb-1">Thinking time (ms)</label>
+      <div class="flex items-center gap-3">
+        <input
+          data-movetime
+          name="movetime_ms"
+          type="range"
+          min="50"
+          max="2000"
+          step="10"
+          value="{{ cfg.movetime_ms }}"
+          class="w-full"
+          {% if cfg.engine_type == "PLAYER" %}disabled{% endif %}
+        />
+        <span data-movetime-display class="w-14 text-right font-mono text-sm text-slate-800">{{ cfg.movetime_ms }}</span>
+      </div>
+    </div>
+  </div>
+</form>
+
+</div>

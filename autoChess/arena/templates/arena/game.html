@@ -1,0 +1,93 @@
+{% extends "arena/base.html" %}
+{% block title %}AutoChess – Match {{ game.id }}{% endblock %}
+
+{% block content %}
+
+  <!-- Polling tick: server decides whether to advance based on next_action_at -->
+  <form id="tick-form"
+        hx-post="{% url 'arena:tick' game_id=game.id %}"
+        hx-trigger="every 500ms"
+        hx-swap="none"
+  >
+    {% csrf_token %}
+  </form>
+
+  <!-- Sticky top bar: status + speed (center) + controls -->
+  <div class="sticky top-3 z-30 mb-3">
+    <div class="card shadow px-3 py-2">
+      <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-3 items-center">
+        <div id="status-info" class="lg:w-[360px]">
+          {% include "arena/fragments/status_info.html" %}
+        </div>
+
+        <div class="flex flex-nowrap items-end justify-end gap-2 overflow-x-auto">
+  <div id="speed-control" class="shrink-0">
+    {% include "arena/fragments/speed_control.html" %}
+  </div>
+
+  <div class="flex flex-nowrap items-end gap-2 shrink-0">
+<button class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+                  hx-post="{% url 'arena:control' game_id=game.id action='start' %}" hx-swap="none">
+            Start
+          </button>
+          <button class="rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold px-3 py-2 text-sm"
+                  hx-post="{% url 'arena:control' game_id=game.id action='pause' %}" hx-swap="none">
+            Pause
+          </button>
+          <button class="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+                  hx-post="{% url 'arena:control' game_id=game.id action='reset' %}" hx-swap="none">
+            Reset
+          </button>
+
+          <button class="rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+                  hx-get="{% url 'arena:moves' game_id=game.id %}"
+                  hx-target="#moves-content"
+                  hx-swap="innerHTML"
+                  hx-on::after-request="document.getElementById('moves-modal').classList.remove('hidden')">
+            Moves
+          </button>
+
+          <a class="rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+             href="{% url 'arena:export_game_pgn' game_id=game.id %}">
+            Export PGN
+          </a>
+
+          <a class="rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+             href="{% url 'arena:dashboard' %}">
+            Home
+          </a>
+  </div>
+</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div id="left-panel" class="lg:col-span-3 card p-4 shadow flex flex-col">
+      {% include "arena/fragments/panel.html" with side_label="WHITE" cfg=white side="WHITE" %}
+    </div>
+
+    <div id="board" class="lg:col-span-6 card p-4 shadow">
+      {% include "arena/fragments/board.html" %}
+    </div>
+
+    <div id="right-panel" class="lg:col-span-3 card p-4 shadow flex flex-col">
+      {% include "arena/fragments/panel.html" with side_label="BLACK" cfg=black side="BLACK" %}
+    </div>
+  </div>
+
+  <!-- Moves modal (hidden by default) -->
+  <div id="moves-modal" class="hidden fixed inset-0 z-50 modal-backdrop p-4 flex items-start justify-center">
+    <div class="card shadow w-full max-w-3xl mt-8 max-h-[80vh] overflow-auto">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200/60">
+        <div class="text-lg font-semibold">Moves</div>
+        <button class="rounded-xl bg-slate-200 hover:bg-slate-300 px-3 py-2 text-slate-900"
+                onclick="document.getElementById('moves-modal').classList.add('hidden')">
+          Close
+        </button>
+      </div>
+      <div id="moves-content" class="p-4"></div>
+    </div>
+  </div>
+
+{% endblock %}

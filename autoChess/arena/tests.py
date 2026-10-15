@@ -1,0 +1,336 @@
+from __future__ import annotations
+
+import os
+from django.test import TestCase
+from django.conf import settings
+from django.utils import timezone
+
+from .services.fen import parse_fen_piece_placement, uci_move_highlight, is_insufficient_material
+from .models import (
+    Game,
+    EngineConfig,
+    EngineType,
+    Player,
+    RatingHistory,
+    Side,
+    StrengthMode,
+    STARTPOS_FEN,
+    GameStatus,
+    Move,
+)
+from .services.game_loop import tick, finalize_game
+from .services.pgn import build_pgn, is_pvp_game
+from .services.rating import (
+    apply_ratings_for_game,
+    bayeselo_fit,
+    elo_delta,
+    expected_score,
+    k_factor,
+    rebuild_ratings,
+)
+
+class FenParsingTests(TestCase):
+    def test_parse_startpos(self):
+        board = parse_fen_piece_placement(STARTPOS_FEN)
+        self.assertEqual(len(board), 8)
+        self.assertEqual(len(board[0]), 8)
+
+    def test_highlight(self):
+        hl = uci_move_highlight("e2e4")
+        self.assertIsNotNone(hl.from_sq)
+        self.assertIsNotNone(hl.to_sq)
+
+    def test_insufficient_material(self):
+        self.assertTrue(is_insufficient_material("8/8/8/8/8/8/8/4K2k w - - 0 1"))
+        self.assertFalse(is_insufficient_material(STARTPOS_FEN))
+
+class EloUnitTests(TestCase):
+    def test_expected_score_symmetry(self):
+        self.assertAlmostEqual(expected_score(1500, 1500), 0.5)
+        self.assertAlmostEqual(expected_score(1500, 1500) + expected_score(1500, 1500), 1.0)
+        self.assertGreater(expected_score(1700, 1500), 0.5)
+
+    def test_elo_delta_win_loss_draw(self):
+        # K=40 for a brand new player; expected score 0.5 at equal ratings.
+        self.assertAlmostEqual(elo_delta(1500, 1500, 1.0, 0), 20.0)
+        self.assertAlmostEqual(elo_delta(1500, 1500, 0.0, 0), -20.0)
+        self.assertAlmostEqual(elo_delta(1500, 1500, 0.5, 0), 0.0)
+
+    def test_k_factor_adaptive(self):
+        self.assertEqual(k_factor(0, 1500), 40.0)
+        self.assertEqual(k_factor(50, 1500), 20.0)
+        self.assertEqual(k_factor(50, 2500), 10.0)
+
+
+class BayesEloUnitTests(TestCase):
+    def test_stronger_player_rated_higher(self):
+        # 0 beats 1 ten times, 1 beats 2 ten times -> ratings[0] > ratings[1] > ratings[2]
+        counts = [(0, 1, 10, 0, 0), (1, 2, 10, 0, 0)]
+        ratings, kappa = bayeselo_fit(counts, 3)
+        self.assertGreater(ratings[0], ratings[1])
+        self.assertGreater(ratings[1], ratings[2])
+        self.assertGreater(kappa, 0.0)
+
+    def test_anchor_is_fixed(self):
+        counts = [(0, 1, 10, 0, 0)]
+        ratings, _ = bayeselo_fit(counts, 2, anchors={1: 1500.0})
+        self.assertAlmostEqual(ratings[1], 1500.0, places=6)
+        self.assertGreater(ratings[0], 1500.0)
+
+    def test_draws_raise_kappa(self):
+        counts = [(0, 1, 0, 0, 50)]
+        _ratings, kappa = bayeselo_fit(counts, 2)
+        self.assertGreater(kappa, 1.0)
+
+
+class RatingIntegrationTests(TestCase):
+    def _finished_game(self, result, white=None, black=None, *, engine_white=False, engine_black=False):
+        game = Game.objects.create(
+            status=GameStatus.FINISHED,
+            fen=STARTPOS_FEN,
+            result=result,
+            finished_at=timezone.now(),
+        )
+        EngineConfig.objects.create(
+            game=game,
+            side=Side.WHITE,
+            engine_type=EngineType.STOCKFISH if engine_white else EngineType.PLAYER,
+            player=white,
+            strength_mode=StrengthMode.SKILL,
+            strength_value=5,
+        )
+        EngineConfig.objects.create(
+            game=game,
+            side=Side.BLACK,
+            engine_type=EngineType.PYCHESS if engine_black else EngineType.PLAYER,
+            player=black,
+            strength_mode=StrengthMode.SKILL,
+            strength_value=3,
+        )
+        return game
+
+    def test_game_updates_elo_and_history(self):
+        alice = Player.objects.create(name="Alice")
+        bob = Player.objects.create(name="Bob")
+        game = self._finished_game("1-0", alice, bob)
+
+        self.assertTrue(apply_ratings_for_game(game))
+
+        alice.refresh_from_db()
+        bob.refresh_from_db()
+        self.assertAlmostEqual(alice.elo_rating, 1520.0)
+        self.assertAlmostEqual(bob.elo_rating, 1480.0)
+        self.assertEqual((alice.games_played, alice.wins), (1, 1))
+        self.assertEqual((bob.games_played, bob.losses), (1, 1))
+        self.assertEqual(RatingHistory.objects.filter(game=game).count(), 2)
+
+    def test_apply_is_idempotent(self):
+        alice = Player.objects.create(name="Alice")
+        bob = Player.objects.create(name="Bob")
+        game = self._finished_game("1/2-1/2", alice, bob)
+
+        self.assertTrue(apply_ratings_for_game(game))
+        alice.refresh_from_db()
+        first_elo = alice.elo_rating
+
+        self.assertFalse(apply_ratings_for_game(game))
+        alice.refresh_from_db()
+        self.assertAlmostEqual(alice.elo_rating, first_elo)
+        self.assertEqual(alice.games_played, 1)
+        self.assertEqual(RatingHistory.objects.filter(game=game).count(), 2)
+
+    def test_engine_participants_auto_created(self):
+        game = self._finished_game("0-1", engine_white=True, engine_black=True)
+        self.assertTrue(apply_ratings_for_game(game))
+        self.assertTrue(Player.objects.filter(name="Stockfish (skill 5)", is_engine=True).exists())
+        self.assertTrue(Player.objects.filter(name="PyChess (skill 3)", is_engine=True).exists())
+
+    def test_unrated_player_side_is_skipped(self):
+        # An engine side auto-registers, but an anonymous human (PLAYER, no Player) cannot be rated.
+        game = self._finished_game("1-0", white=None, black=None, engine_black=True)
+        self.assertFalse(apply_ratings_for_game(game))
+        self.assertEqual(RatingHistory.objects.count(), 0)
+
+    def test_rebuild_recomputes_from_scratch(self):
+        alice = Player.objects.create(name="Alice")
+        bob = Player.objects.create(name="Bob")
+        for result in ("1-0", "0-1", "1-0"):
+            self._finished_game(result, alice, bob)
+
+        applied = rebuild_ratings()
+        self.assertEqual(applied, 3)
+
+        alice.refresh_from_db()
+        bob.refresh_from_db()
+        self.assertEqual(alice.games_played, 3)
+        self.assertEqual(bob.games_played, 3)
+        self.assertEqual(RatingHistory.objects.count(), 6)
+        # White won two of three -> positive net Elo.
+        self.assertGreater(alice.elo_rating, 1500.0)
+
+    def test_finalize_game_applies_ratings(self):
+        alice = Player.objects.create(name="Alice")
+        bob = Player.objects.create(name="Bob")
+        game = self._finished_game("1-0", alice, bob)
+        finalize_game(game)
+        self.assertTrue(RatingHistory.objects.filter(game=game).exists())
+
+
+class RatingViewTests(TestCase):
+    def test_players_list_and_detail_render(self):
+        alice = Player.objects.create(name="Alice")
+        bob = Player.objects.create(name="Bob")
+        for result in ("1-0", "1-0"):
+            game = Game.objects.create(
+                status=GameStatus.FINISHED, fen=STARTPOS_FEN, result=result,
+                finished_at=timezone.now(),
+            )
+            EngineConfig.objects.create(
+                game=game, side=Side.WHITE, engine_type=EngineType.PLAYER,
+                player=alice, strength_mode=StrengthMode.SKILL, strength_value=10,
+            )
+            EngineConfig.objects.create(
+                game=game, side=Side.BLACK, engine_type=EngineType.PLAYER,
+                player=bob, strength_mode=StrengthMode.SKILL, strength_value=10,
+            )
+            apply_ratings_for_game(game)
+
+        resp = self.client.get("/players/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alice")
+        self.assertContains(resp, "BayesElo")
+
+        resp = self.client.get(f"/players/{alice.id}/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Rating trend")
+        self.assertContains(resp, "<svg")  # trend chart rendered
+
+    def test_game_page_shows_participant_rating(self):
+        game = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN)
+        EngineConfig.objects.create(
+            game=game, side=Side.WHITE, engine_type=EngineType.PYCHESS,
+            strength_mode=StrengthMode.SKILL, strength_value=7,
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.BLACK, engine_type=EngineType.STOCKFISH,
+            strength_mode=StrengthMode.SKILL, strength_value=12,
+        )
+        resp = self.client.get(f"/games/{game.id}/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "PyChess (skill 7)")
+        self.assertContains(resp, "Stockfish (skill 12)")
+
+
+class IntegrationStockfishTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        pass
+
+    def test_10_ply_runs_if_engine_available(self):
+        exe = getattr(settings, "AUTOCHESS_STOCKFISH_PATH", "stockfish")
+        # Skip if binary not found on PATH and not an absolute path.
+        if os.path.sep not in exe and os.name == "nt":
+            # On Windows, stockfish on PATH is less likely; allow env override.
+            if exe == "stockfish":
+                self.skipTest("Stockfish is not configured on Windows.")
+        if exe == "stockfish" and os.name != "nt":
+            # Linux/mac: assume may exist; still might not
+            pass
+
+        g = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN, move_interval_ms=0)
+        EngineConfig.objects.create(game=g, side=Side.WHITE, strength_mode=StrengthMode.SKILL, strength_value=1, movetime_ms=50)
+        EngineConfig.objects.create(game=g, side=Side.BLACK, strength_mode=StrengthMode.SKILL, strength_value=1, movetime_ms=50)
+
+        # perform ticks
+        for _ in range(10):
+            tick(g.id)
+            g.refresh_from_db()
+            if g.status == GameStatus.FINISHED:
+                break
+
+        self.assertGreaterEqual(g.ply_count, 1)
+
+
+class PgnExportTests(TestCase):
+    def _pvp_game(self, moves, result="1-0"):
+        game = Game.objects.create(
+            status=GameStatus.FINISHED, fen=STARTPOS_FEN, result=result,
+            finished_at=timezone.now(),
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.WHITE, engine_type=EngineType.PLAYER,
+            strength_mode=StrengthMode.SKILL, strength_value=10,
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.BLACK, engine_type=EngineType.PLAYER,
+            strength_mode=StrengthMode.SKILL, strength_value=10,
+        )
+        for idx, uci in enumerate(moves, start=1):
+            Move.objects.create(game=game, ply_index=idx, uci=uci, san=uci, fen_after=STARTPOS_FEN)
+        return game
+
+    def test_build_pgn_uses_san_and_headers(self):
+        game = self._pvp_game(["e2e4", "e7e5", "g1f3"])
+        pgn = build_pgn(game)
+        self.assertIn('[Result "1-0"]', pgn)
+        self.assertIn("1. e4 e5 2. Nf3 1-0", pgn)
+        self.assertIn("Human (White)", pgn)
+        self.assertIn("Human (Black)", pgn)
+
+    def test_is_pvp_game(self):
+        pvp = self._pvp_game([])
+        self.assertTrue(is_pvp_game(pvp))
+
+        engine_game = Game.objects.create(status=GameStatus.FINISHED, fen=STARTPOS_FEN, result="1-0")
+        EngineConfig.objects.create(
+            game=engine_game, side=Side.WHITE, engine_type=EngineType.PYCHESS,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        EngineConfig.objects.create(
+            game=engine_game, side=Side.BLACK, engine_type=EngineType.STOCKFISH,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        self.assertFalse(is_pvp_game(engine_game))
+
+    def test_export_single_game_pgn(self):
+        game = self._pvp_game(["d2d4", "d7d5"])
+        resp = self.client.get(f"/games/{game.id}/pgn/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/x-chess-pgn", resp["Content-Type"])
+        self.assertIn("attachment", resp["Content-Disposition"])
+        self.assertIn("1. d4 d5", resp.content.decode())
+
+    def test_export_pvp_bundle_only_includes_human_games(self):
+        pvp = self._pvp_game(["e2e4"], result="1-0")
+        engine_game = Game.objects.create(status=GameStatus.FINISHED, fen=STARTPOS_FEN, result="0-1",
+                                          finished_at=timezone.now())
+        EngineConfig.objects.create(
+            game=engine_game, side=Side.WHITE, engine_type=EngineType.PYCHESS,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        EngineConfig.objects.create(
+            game=engine_game, side=Side.BLACK, engine_type=EngineType.STOCKFISH,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        resp = self.client.get("/exports/pvp.pgn", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn(f'[Round "{pvp.id}"]', body)
+        self.assertNotIn(f'[Round "{engine_game.id}"]', body)
+
+    def test_create_hot_seat_game_sets_both_sides_human(self):
+        resp = self.client.post(
+            "/games/new",
+            {
+                "mode": "HUMAN_VS_HUMAN",
+                "white_strength": 10,
+                "black_strength": 10,
+                "move_interval_ms": 600,
+                "movetime_ms": 150,
+            },
+            secure=True,
+        )
+        self.assertEqual(resp.status_code, 204)
+        game = Game.objects.latest("id")
+        types = set(game.engines.values_list("engine_type", flat=True))
+        self.assertEqual(types, {EngineType.PLAYER})

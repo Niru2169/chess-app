@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{% block title %}AutoChess{% endblock %}</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <style>
+  :root {
+    --ac-bg: #f8fafc;            /* slate-50 */
+    --ac-card: #ffffff;
+    --ac-border: #e2e8f0;        /* slate-200 */
+    --ac-muted: #475569;         /* slate-600 */
+    --ac-sq-light: #f0d0b0;      /* screenshot-like */
+    --ac-sq-dark:  #b08060;      /* screenshot-like */
+    --ac-sq-last:  #c0d060;      /* last-move highlight */
+    --ac-sq-last2: #d8e57a;      /* secondary highlight */
+  }
+
+  .board-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .sq.light { background: var(--ac-sq-light); }
+  .sq.dark  { background: var(--ac-sq-dark); }
+  .sq.last-from { background: var(--ac-sq-last); }
+  .sq.last-to   { background: var(--ac-sq-last2); }
+  .card { background: rgba(255,255,255,0.84); border: 1px solid rgba(148,163,184,0.45); border-radius: 1rem; backdrop-filter: blur(6px); }
+  .muted { color: var(--ac-muted); }
+  /* Coordinates and piece coloring */
+  .board-frame {
+  display: grid;
+  grid-template-columns: 1.4rem repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr)) 1.4rem;
+  border: 1px solid var(--ac-border);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: rgba(255,255,255,0.75);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.board-svg {
+  background: rgba(255,255,255,0.75);
+}
+.board-svg svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.coord {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--ac-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    user-select: none;
+  }
+  
+
+/* Page background: subtle wood / veneer pattern */
+
+
+/* Board decorative frame */
+.board-wrap {
+  padding: 14px;
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(180deg, rgba(160,110,70,0.55), rgba(110,70,45,0.55)),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255,255,255,0.08) 0px,
+      rgba(255,255,255,0.08) 6px,
+      rgba(0,0,0,0.06) 6px,
+      rgba(0,0,0,0.06) 12px
+    );
+  box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+}
+.board-frame {
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
+}
+
+/* Small pills for status */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  border: 1px solid rgba(148,163,184,0.55);
+  background: rgba(255,255,255,0.70);
+}
+.pill.ok { border-color: rgba(16,185,129,0.55); }
+.pill.warn { border-color: rgba(245,158,11,0.65); }
+.pill.done { border-color: rgba(100,116,139,0.65); }
+
+  .status-stack { min-height: 3.1rem; }
+
+/* Modals */
+.modal-backdrop {
+  background: rgba(15, 23, 42, 0.30);
+  backdrop-filter: blur(2px);
+}
+
+
+/* Darker veneer background (override) */
+body {
+  background-color: #d9cfbf;
+  background-image:
+    radial-gradient(1200px 600px at 20% 0%, rgba(255,255,255,0.42), rgba(255,255,255,0) 60%),
+    radial-gradient(900px 500px at 90% 10%, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(120, 85, 55, 0.12) 0px,
+      rgba(120, 85, 55, 0.12) 8px,
+      rgba(160, 120, 80, 0.08) 8px,
+      rgba(160, 120, 80, 0.08) 18px
+    );
+  background-attachment: fixed;
+}
+
+/* Clickable overlay above the squares (player move) */
+.board-svg { position: relative; }
+.board-overlay{
+  position:absolute;
+  inset:0;
+  display:grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+}
+.sq-hit{
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+.sq-hit:hover{
+  background: rgba(34, 197, 94, 0.18);
+}
+.sq-hit.sq-selected{
+  background: rgba(34, 197, 94, 0.35);
+  outline: 2px solid rgba(34, 197, 94, 0.65);
+  outline-offset: -2px;
+}
+
+
+/* Panel backgrounds (images + faint white overlay for readability) */
+
+
+.btn-dirty::after{
+  content: "NOT SAVED";
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.95);
+  color: #1f2937;
+  font-weight: 800;
+}
+
+/* Turn indicator - a clearly readable badge */
+.turn-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 6px 10px;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: .3px;
+  color: #b91c1c;
+  background: #fde047;
+  border-radius: 999px;
+  border: 2px solid rgba(185, 28, 28, .35);
+  box-shadow: 0 2px 6px rgba(0,0,0,.18);
+  user-select:none;
+  line-height: 1;
+}
+
+.panel-head{
+  position: relative;
+  margin-bottom: 12px;
+  min-height: 44px; /* stable header height so it does not jump */
+}
+.panel-head-main{
+  padding-right: 86px; /* space for the TURN badge */
+}
+.panel-title{
+  font-size: 20px;
+  font-weight: 800;
+}
+.panel-subtitle{
+  font-size: 12px;
+  color: #475569;
+}
+.turn-indicator{
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  pointer-events: none;
+}
+</style>
+
+
+
+    <script>
+      // HTMX + Django CSRF
+      document.addEventListener("htmx:configRequest", (event) => {
+        const getCookie = (name) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop().split(';').shift();
+        };
+        const token = getCookie("csrftoken");
+        if (token) event.detail.headers["X-CSRFToken"] = token;
+      });
+    </script>
+  </head>
+  <body class="text-slate-900 min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 py-6">
+      {% block content %}{% endblock %}
+    </div>
+  <script>
+  function applyEnginePanelBindings(root) {
+  (root || document).querySelectorAll('form[data-engine-config]').forEach(function(form) {
+    var typeSel = form.querySelector('[data-engine-type-select]');
+    var modeSel = form.querySelector('[data-strength-mode]');
+    var strength = form.querySelector('[data-strength-value]');
+    var strengthDisp = form.querySelector('[data-strength-display]');
+    var strengthHint = form.querySelector('[data-strength-hint]');
+    var mt = form.querySelector('[data-movetime]');
+    var mtDisp = form.querySelector('[data-movetime-display]');
+    var paramsWrap = form.querySelector('[data-player-params]');
+
+    // Panel label under title
+    var panel = form.closest('.card') || form.parentElement;
+    var typeLbl = panel ? panel.querySelector('[data-engine-type-label]') : null;
+
+    function setTypeLabel() {
+      if (!typeSel || !typeLbl) return;
+      var v = typeSel.value;
+      if (v === 'STOCKFISH') typeLbl.textContent = 'Stockfish';
+      else if (v === 'PYCHESS') typeLbl.textContent = 'PyChess (python-chess)';
+      else if (v === 'PLAYER') typeLbl.textContent = 'Player';
+      else typeLbl.textContent = v;
+    }
+
+    function togglePlayerMode() {
+      if (!typeSel) return;
+      var isPlayer = (typeSel.value === 'PLAYER');
+
+      if (paramsWrap) {
+        if (isPlayer) paramsWrap.classList.add('opacity-50');
+        else paramsWrap.classList.remove('opacity-50');
+      }
+
+      [modeSel, strength, mt].forEach(function(el) {
+        if (!el) return;
+        el.disabled = isPlayer;
+      });
+
+      if (isPlayer) {
+        if (strengthHint) strengthHint.textContent = 'In player mode these settings do not apply.';
+      } else {
+        clampStrength();
+      }
+    }
+
+    function clampStrength() {
+      if (!modeSel || !strength) return;
+
+      var mode = modeSel.value;
+
+      if (mode === 'SKILL') {
+        strength.min = '1';
+        strength.max = '20';
+        strength.step = '1';
+        if (strengthHint) strengthHint.textContent = 'Skill: 1–20';
+      } else if (mode === 'ELO') {
+        strength.min = '800';
+        strength.max = '3200';
+        strength.step = '50';
+        if (strengthHint) strengthHint.textContent = 'Elo: 800–3200';
+      }
+
+      var v = parseInt(strength.value || (mode === 'ELO' ? '1200' : '10'), 10);
+      if (isNaN(v)) v = (mode === 'ELO') ? 1200 : 10;
+
+      var minV = parseInt(strength.min, 10);
+      var maxV = parseInt(strength.max, 10);
+      if (v < minV) v = minV;
+      if (v > maxV) v = maxV;
+
+      strength.value = String(v);
+      if (strengthDisp) strengthDisp.textContent = String(v);
+    }
+
+    function clampMoveTime() {
+      if (!mt) return;
+      var v = parseInt(mt.value || '150', 10);
+      if (isNaN(v)) v = 150;
+      if (v < 50) v = 50;
+      if (v > 2000) v = 2000;
+      mt.value = String(v);
+      if (mtDisp) mtDisp.textContent = String(v);
+    }
+
+    if (typeSel) {
+      typeSel.addEventListener('change', function() {
+        setTypeLabel();
+        togglePlayerMode();
+      });
+    }
+    if (modeSel && strength) {
+      modeSel.addEventListener('change', clampStrength);
+      strength.addEventListener('input', clampStrength);
+      strength.addEventListener('blur', clampStrength);
+    }
+    if (mt) {
+      mt.addEventListener('input', clampMoveTime);
+      mt.addEventListener('blur', clampMoveTime);
+    }
+
+    // Init
+    setTypeLabel();
+    clampStrength();
+    clampMoveTime();
+    togglePlayerMode();
+  });
+}
+
+
+function _serializeFormForDirty(form){
+  var parts = [];
+  form.querySelectorAll('input, select, textarea').forEach(function(el){
+    if (!el.name) return;
+    if (el.name === 'csrfmiddlewaretoken') return;
+    if (el.disabled) return; // Ignore fields disabled in player mode
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      parts.push(el.name + '=' + (el.checked ? '1' : '0'));
+    } else {
+      parts.push(el.name + '=' + String((el.value !== undefined && el.value !== null) ? el.value : ''));
+    }
+  });
+  return parts.join('&');
+}
+
+function _getSaveBtn(form){
+  return form.querySelector('button[data-save-btn]') || form.querySelector('button[type="submit"]');
+}
+
+function _setDirty(btn, isDirty){
+  if (!btn) return;
+  if (btn.dataset.origText === undefined) btn.dataset.origText = btn.textContent.trim();
+  if (isDirty) {
+    btn.classList.add('btn-dirty');
+    btn.setAttribute('aria-label', (btn.dataset.origText || 'Save') + ' (not saved)');
+  } else {
+    btn.classList.remove('btn-dirty');
+    btn.setAttribute('aria-label', (btn.dataset.origText || 'Save'));
+  }
+}
+
+function _updateDirtyState(form){
+  var btn = _getSaveBtn(form);
+  if (!btn) return;
+  var baseline = form.dataset.dirtyBaseline || '';
+  var cur = _serializeFormForDirty(form);
+  _setDirty(btn, cur !== baseline);
+}
+
+function _commitDirtyBaseline(form){
+  form.dataset.dirtyBaseline = _serializeFormForDirty(form);
+  _updateDirtyState(form);
+}
+
+function initDirtyTracking(root){
+  (root || document).querySelectorAll('form[data-dirty-track]').forEach(function(form){
+    // Do not duplicate the listener on the same DOM instance.
+    if (form.dataset.dirtyInit === '1') {
+      _updateDirtyState(form);
+      return;
+    }
+    form.dataset.dirtyInit = '1';
+    _commitDirtyBaseline(form);
+
+    form.addEventListener('input', function(){ _updateDirtyState(form); });
+    form.addEventListener('change', function(){ _updateDirtyState(form); });
+
+    // Clear the "dirty" marker after saving even when hx-swap="none".
+    form.addEventListener('htmx:afterRequest', function(evt){
+      var xhr = evt.detail && evt.detail.xhr;
+      if (!xhr) return;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        _commitDirtyBaseline(form);
+      }
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    applyEnginePanelBindings(document);
+    initDirtyTracking(document);
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    applyEnginePanelBindings(evt.target);
+    initDirtyTracking(evt.target);
+  });
+
+  // Player mode: visual selection immediately (the server response overrides it)
+  document.addEventListener('click', function(ev) {
+    var btn = ev.target.closest('.sq-hit');
+    if (!btn) return;
+
+    var overlay = btn.closest('.board-overlay');
+    if (!overlay) return;
+    // If the overlay is disabled (pointer-events-none) we would not get here, but just in case.
+    if (overlay.classList.contains('pointer-events-none')) return;
+
+    var selected = overlay.querySelectorAll('.sq-hit.sq-selected');
+
+    // 0 -> 1 selection, 1 -> 2 selections, 2 -> start over
+    if (selected.length >= 2) {
+      selected.forEach(function(x){ x.classList.remove('sq-selected'); });
+    }
+    if (btn.classList.contains('sq-selected')) {
+      btn.classList.remove('sq-selected');
+      return;
+    }
+    btn.classList.add('sq-selected');
+  }, true);
+</script>
+</body>
+</html>

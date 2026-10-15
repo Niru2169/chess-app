@@ -1,0 +1,81 @@
+{% extends "arena/base.html" %}
+{% block title %}AutoChess – {{ player.name }}{% endblock %}
+
+{% block content %}
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-semibold">{{ player.name }}</h1>
+      <div class="text-sm text-slate-700">
+        {% if player.is_engine %}Engine{% else %}Player{% endif %} profile
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a class="rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+         href="{% url 'arena:players' %}">Leaderboard</a>
+      <a class="rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+         href="{% url 'arena:dashboard' %}">Home</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="card p-4 shadow">
+      <div class="text-xs text-slate-600">Elo</div>
+      <div class="text-2xl font-semibold font-mono">{{ player.elo_rating|floatformat:0 }}</div>
+    </div>
+    <div class="card p-4 shadow">
+      <div class="text-xs text-slate-600">BayesElo</div>
+      <div class="text-2xl font-semibold font-mono">{{ player.bayeselo_rating|floatformat:0 }}</div>
+    </div>
+    <div class="card p-4 shadow">
+      <div class="text-xs text-slate-600">Games</div>
+      <div class="text-2xl font-semibold">{{ player.games_played }}</div>
+    </div>
+    <div class="card p-4 shadow">
+      <div class="text-xs text-slate-600">W–D–L</div>
+      <div class="text-2xl font-semibold">{{ player.wins }}–{{ player.draws }}–{{ player.losses }}</div>
+    </div>
+  </div>
+
+  <div class="card p-4 shadow mb-4">
+    <div class="text-sm font-semibold mb-3">Rating trend</div>
+    {{ chart_svg|safe }}
+  </div>
+
+  <div class="card p-4 shadow overflow-auto">
+    <div class="text-sm font-semibold mb-3">Matches</div>
+    <table class="w-full text-sm">
+      <thead class="text-slate-600">
+        <tr>
+          <th class="text-left py-2">Match</th>
+          <th class="text-left py-2">Date</th>
+          <th class="text-right py-2">Elo</th>
+          <th class="text-right py-2">Δ</th>
+          <th class="text-right py-2">BayesElo</th>
+          <th class="text-right py-2">Δ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+          <tr class="border-t border-slate-200">
+            <td class="py-2">
+              {% if h.game_id %}
+                <a class="underline" href="{% url 'arena:game' game_id=h.game_id %}">#{{ h.game_id }}</a>
+              {% else %}-{% endif %}
+            </td>
+            <td class="py-2">{{ h.created_at|date:"Y-m-d H:i" }}</td>
+            <td class="py-2 text-right font-mono">{{ h.elo_rating|floatformat:0 }}</td>
+            <td class="py-2 text-right font-mono {% if h.elo_delta >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+              {{ h.elo_delta|floatformat:1 }}
+            </td>
+            <td class="py-2 text-right font-mono">{{ h.bayeselo_rating|floatformat:0 }}</td>
+            <td class="py-2 text-right font-mono {% if h.bayeselo_delta >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+              {{ h.bayeselo_delta|floatformat:1 }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td class="py-2 text-slate-600" colspan="6">No finished matches yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "arena/base.html" %}
+{% block title %}AutoChess – Leaderboard{% endblock %}
+
+{% block content %}
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-semibold">Leaderboard</h1>
+      <div class="text-sm text-slate-700">Rated players and engines (Elo + BayesElo).</div>
+    </div>
+    <a class="rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+       href="{% url 'arena:dashboard' %}">Home</a>
+  </div>
+
+  <div class="rounded-2xl card p-5 shadow overflow-auto">
+    <table class="w-full text-sm">
+      <thead class="text-slate-600">
+        <tr>
+          <th class="text-left py-2">#</th>
+          <th class="text-left py-2">Name</th>
+          <th class="text-right py-2">Elo</th>
+          <th class="text-right py-2">BayesElo</th>
+          <th class="text-right py-2">Games</th>
+          <th class="text-right py-2">W–D–L</th>
+          <th class="text-right py-2">Score%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+          <tr class="border-t border-slate-200">
+            <td class="py-2">{{ forloop.counter }}</td>
+            <td class="py-2">
+              <a class="underline" href="{% url 'arena:player_detail' player_id=p.id %}">{{ p.name }}</a>
+              {% if p.is_engine %}<span class="text-xs text-slate-500">(engine)</span>{% endif %}
+            </td>
+            <td class="py-2 text-right font-mono">{{ p.elo_rating|floatformat:0 }}</td>
+            <td class="py-2 text-right font-mono">{{ p.bayeselo_rating|floatformat:0 }}</td>
+            <td class="py-2 text-right">{{ p.games_played }}</td>
+            <td class="py-2 text-right">{{ p.wins }}–{{ p.draws }}–{{ p.losses }}</td>
+            <td class="py-2 text-right font-mono">{{ p.score_rate|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td class="py-2 text-slate-600" colspan="7">No rated players yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

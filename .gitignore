@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Django local state / secrets
+*.sqlite3
+.env
+
+# Large redundant archives (duplicates of the working trees)
+ours_gpu.zip
+
+# OS
+.DS_Store
+Thumbs.db

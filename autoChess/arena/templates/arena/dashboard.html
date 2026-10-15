@@ -1,0 +1,56 @@
+{% extends "arena/base.html" %}
+{% block title %}AutoChess – Dashboard{% endblock %}
+
+{% block content %}
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-semibold">AutoChess</h1>
+      <div class="text-sm text-slate-700">Two engines against each other, with live visualization (Django + HTMX).</div>
+    </div>
+    <div class="flex gap-2">
+      <a class="rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+         href="{% url 'arena:players' %}">Leaderboard</a>
+      <a class="rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+         href="{% url 'arena:export_pvp_pgn' %}">Export PvP (PGN)</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="rounded-2xl card p-5 shadow">
+      <h2 class="text-lg font-semibold mb-4">New match</h2>
+      <div id="new-game-form">
+        {% include "arena/fragments/new_game_form.html" %}
+      </div>
+    </div>
+
+    <div class="rounded-2xl card p-5 shadow flex flex-col max-h-[calc(100vh-210px)]">
+      <h2 class="text-lg font-semibold mb-3 shrink-0">Recent results</h2>
+      <div class="overflow-auto grow">
+        <table class="w-full text-sm">
+          <thead class="text-slate-600 sticky top-0 bg-white/80 backdrop-blur">
+            <tr>
+              <th class="text-left py-2">ID</th>
+              <th class="text-left py-2">Result</th>
+              <th class="text-left py-2">Reason</th>
+              <th class="text-left py-2">Plies</th>
+              <th class="text-left py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in recent %}
+              <tr class="border-t border-slate-200">
+                <td class="py-2">{{ g.id }}</td>
+                <td class="py-2">{{ g.result }}</td>
+                <td class="py-2">{{ g.termination_reason }}</td>
+                <td class="py-2">{{ g.ply_count }}</td>
+                <td class="py-2"><a class="underline" href="{% url 'arena:game' game_id=g.id %}">Open</a></td>
+              </tr>
+            {% empty %}
+              <tr><td class="py-2 text-slate-600" colspan="5">No finished matches yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,53 @@
+<form
+  hx-post="{% url 'arena:create_game' %}"
+  hx-target="#new-game-form"
+  hx-swap="outerHTML"
+  class="space-y-4"
+>
+  {% csrf_token %}
+
+  <div>
+    <label class="block text-sm text-slate-600 mb-1">Game mode</label>
+    <select name="mode" class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2">
+      <option value="ENGINE_VS_ENGINE" {% if form.mode.value == "ENGINE_VS_ENGINE" or not form.mode.value %}selected{% endif %}>Engine vs Engine</option>
+      <option value="HUMAN_VS_ENGINE" {% if form.mode.value == "HUMAN_VS_ENGINE" %}selected{% endif %}>Human (White) vs Engine (Black)</option>
+      <option value="HUMAN_VS_HUMAN" {% if form.mode.value == "HUMAN_VS_HUMAN" %}selected{% endif %}>Human vs Human (hot-seat)</option>
+    </select>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm text-slate-600 mb-1">White strength (1–20)</label>
+      <input name="white_strength" type="number" min="1" max="20" value="{{ form.white_strength.value|default:10 }}"
+             class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm text-slate-600 mb-1">Black strength (1–20)</label>
+      <input name="black_strength" type="number" min="1" max="20" value="{{ form.black_strength.value|default:10 }}"
+             class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2" />
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm text-slate-600 mb-1">Move interval (ms)</label>
+      <input name="move_interval_ms" type="number" min="200" max="5000" value="{{ form.move_interval_ms.value|default:600 }}"
+             class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm text-slate-600 mb-1">Thinking time (ms)</label>
+      <input name="movetime_ms" type="number" min="50" max="2000" value="{{ form.movetime_ms.value|default:150 }}"
+             class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2" />
+    </div>
+  </div>
+
+  <button class="rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-semibold px-4 py-2" type="submit">
+    Create and open
+  </button>
+
+  {% if form.errors %}
+    <div class="text-sm text-red-300">
+      {{ form.errors }}
+    </div>
+  {% endif %}
+</form>

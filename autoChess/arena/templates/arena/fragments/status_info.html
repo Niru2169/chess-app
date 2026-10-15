@@ -1,0 +1,31 @@
+<div class="flex flex-col gap-1">
+  <div class="flex flex-wrap items-center gap-2">
+    <div class="text-sm font-semibold">Match #{{ game.id }}</div>
+
+    {% if game.status == "RUNNING" %}
+      <span class="pill ok"><span class="font-semibold">Running</span></span>
+    {% elif game.status == "PAUSED" %}
+      <span class="pill warn"><span class="font-semibold">Paused</span></span>
+    {% elif game.status == "FINISHED" %}
+      <span class="pill done"><span class="font-semibold">Finished</span></span>
+    {% else %}
+      <span class="pill"><span class="font-semibold">{{ game.status }}</span></span>
+    {% endif %}
+
+    <span class="pill">
+      Side to move:
+      {% if game.side_to_move == "w" %}<span class="font-semibold">White</span>{% else %}<span class="font-semibold">Black</span>{% endif %}
+    </span>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="pill done">
+      Result: <span class="font-semibold">{% if game.result %}{{ game.result }}{% else %}-{% endif %}</span>
+      {% if game.termination_reason %}<span class="muted">({{ game.termination_reason }})</span>{% endif %}
+    </span>
+
+    <span class="pill">
+      Next move: <span class="font-mono font-semibold inline-block text-center" style="min-width: 6ch;">{% if game.pending_move_uci %}{{ game.pending_move_uci }}{% else %}-{% endif %}</span>
+    </span>
+  </div>
+</div>
