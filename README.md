@@ -74,11 +74,38 @@ autoChess/                     Django project
   autochess_site/              settings, urls, wsgi/asgi
   docs/, ARCHITECTURE.md ...
 
-BayesianELO-main/              GNN engine
+BayesianELO-main/              GNN engine — git submodule -> Niru2169/BayesianELO
   gnn-chess/                   plays.py, play.py, train.py, preprocess.py, model.py, features.py ...
     chessgnn.pt                trained checkpoint
   ours_gpu_extras/             chessutil, graph_builder, search, targets_and_loss, training_utils, data, labels
 ```
+
+---
+
+## Getting the code
+
+The GNN engine lives in a git **submodule** (our fork of Ducky's `BayesianELO`), so fetch it too:
+
+```powershell
+git clone --recurse-submodules https://github.com/Niru2169/chess-app.git
+cd chess-app
+```
+
+Already cloned without it? Initialise it in place:
+
+```powershell
+git submodule update --init
+```
+
+To pick up later changes in the engine:
+
+```powershell
+git submodule update --remote BayesianELO-main   # latest commit from our fork
+```
+
+Our fork tracks Ducky's upstream, so to pull *his* newer work: open
+<https://github.com/Niru2169/BayesianELO> → **Sync fork** → *Update branch*, then run the command
+above. Work on the engine inside `BayesianELO-main/` and commit/push it as its own repo.
 
 ---
 
@@ -118,7 +145,7 @@ Open <http://127.0.0.1:8000/>.
 - For engine play, set `AUTOCHESS_STOCKFISH_PATH` in `.env` to the Stockfish executable (or have `stockfish` on `PATH`).
 - `AUTOCHESS_RATE_ENGINES=1` lets engines take part in the rating pool.
 - Recompute every rating from scratch: `python manage.py rebuild_ratings`.
-- Tests: `python manage.py test` (33 tests).
+- Tests: `python manage.py test` (40 tests).
 
 ---
 
