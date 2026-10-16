@@ -83,8 +83,22 @@ side panel), so the GNN can play matches, be rated (Elo + BayesElo) and export P
 engine. Without Stockfish installed, moves are applied with the python-chess fallback so
 engine-vs-engine games still run.
 
+**Search depth.** A GNN side can play in two ways, chosen with the panel's **Search depth** control:
+
+| Setting | Behaviour |
+| --- | --- |
+| `Policy only (top-p)` | No search — a move is sampled from the nucleus (top-p) policy. |
+| `Depth 3 / 5 / 8` | **Minimax search** over the GNN's policy + value heads (the tree is built breadth-first and evaluated in batches on the GPU). |
+
+Deeper searches see further ahead; they stay fast because the tree is pruned by cumulative path
+probability (`AUTOCHESS_GNN_MIN_PROB`, default `0.001`). Depth 8 typically takes a few tenths of a
+second per move on a laptop GPU.
+
+Each depth is a **separate rated player** (`GNN (policy)`, `GNN (depth 3)`, …), so the leaderboard
+can compare depths directly.
+
 - Config (`.env`): `AUTOCHESS_GNN_ENABLED`, `AUTOCHESS_GNN_DIR`, `AUTOCHESS_GNN_MODEL`,
-  `AUTOCHESS_GNN_TOP_P`, `AUTOCHESS_GNN_REFRESH_MS`.
+  `AUTOCHESS_GNN_TOP_P`, `AUTOCHESS_GNN_REFRESH_MS`, `AUTOCHESS_GNN_MIN_PROB`.
 - Degrades gracefully: if `torch` or the checkpoint is missing the panel shows a short message
   instead of failing; the app runs fine without the GNN.
 - Endpoint: `GET /games/<id>/prediction/` (HTMX fragment).

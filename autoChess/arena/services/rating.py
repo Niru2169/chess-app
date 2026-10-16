@@ -204,6 +204,11 @@ def bayeselo_fit(
 
 def engine_player_name(cfg: EngineConfig) -> str:
     """Stable, descriptive name for an engine (based on its strength level)."""
+    if cfg.engine_type == EngineType.GNN:
+        # For the GNN the meaningful setting is the minimax search depth.
+        depth = int(getattr(cfg, "search_depth", 0) or 0)
+        return f"GNN (depth {depth})" if depth else "GNN (policy)"
+
     base = {
         EngineType.STOCKFISH: "Stockfish",
         EngineType.PYCHESS: "PyChess",

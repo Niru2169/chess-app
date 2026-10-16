@@ -393,7 +393,7 @@ def best_move(fen: str, cfg: EngineConfig) -> UciBestMove:
         return UciBestMove(move=mv)
     if engine_type == EngineType.GNN:
         try:
-            mv = gnn.best_move(fen)
+            mv = gnn.best_move(fen, depth=getattr(cfg, "search_depth", 0) or 0)
         except gnn.GnnUnavailable as exc:
             raise UciError(f"GNN engine unavailable: {exc}") from exc
         return UciBestMove(move=mv)

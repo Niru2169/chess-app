@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django import forms
 
-from .models import Side, StrengthMode, EngineType
+from .models import Side, StrengthMode, EngineType, GNN_DEPTH_CHOICES
 
 
 class NewGameForm(forms.Form):
@@ -40,12 +40,17 @@ class UpdateConfigForm(forms.Form):
     strength_value = forms.IntegerField(min_value=1, max_value=3200, required=False)
     movetime_ms = forms.IntegerField(min_value=50, max_value=2000, required=False)
 
+    # GNN only: minimax search depth (0 = policy only, no search).
+    search_depth = forms.TypedChoiceField(
+        choices=GNN_DEPTH_CHOICES, coerce=int, required=False,
+    )
+
     def clean(self):
         cleaned = super().clean()
         engine_type = cleaned.get("engine_type")
 
-        # For PLAYER (human) the engine parameters do not matter.
-        if engine_type == EngineType.PLAYER:
+        # Human players and the GNN do not use the UCI strength / thinking time.
+        if engine_type in (EngineType.PLAYER, EngineType.GNN):
             return cleaned
 
         mode = cleaned.get("strength_mode")

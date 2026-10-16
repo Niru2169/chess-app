@@ -20,7 +20,7 @@ from .services.chart import rating_chart_svg
 from .services.fen import halfmove_clock_from_fen, is_insufficient_material
 from .services.game_loop import tick, ensure_engine_rows, finalize_game
 from .services.pgn import build_pgn, is_pvp_game
-from .services.rating import ensure_participants
+from .services.rating import engine_player_name, ensure_participants
 from .services.engine import inspect_position
 from .services.gnn import predict_position
 
@@ -202,15 +202,40 @@ def update_config(request: HttpRequest, game_id: int) -> HttpResponse:
         ensure_engine_rows(game)
         cfg = game.engines.get(side=side)
 
+        # Rated identity of an engine side is derived from its type and its
+        # strength (or, for the GNN, its search depth). Keep the previous name so
+        # we can tell whether the participant must be re-resolved below.
+        previous_name = (
+            engine_player_name(cfg) if cfg.engine_type != EngineType.PLAYER else ""
+        )
+
         cfg.engine_type = new_type
 
-        # For PLAYER (human) the strength/movetime fields are ignored.
-        if new_type != EngineType.PLAYER:
+        if new_type == EngineType.GNN:
+            # The GNN is configured by its minimax search depth; the UCI
+            # strength mode/value and thinking time do not apply to it.
+            cfg.search_depth = form.cleaned_data.get("search_depth") or 0
+        elif new_type != EngineType.PLAYER:
+            # For PLAYER (human) the strength/movetime fields are ignored.
             cfg.strength_mode = form.cleaned_data["strength_mode"]
             cfg.strength_value = form.cleaned_data["strength_value"]
             cfg.movetime_ms = form.cleaned_data["movetime_ms"]
 
+        # Changing the engine identity (e.g. GNN policy -> depth 5) must not keep
+        # crediting the old rated player, so drop the cached participant. It is
+        # resolved again from the new name (and never touched for finished games).
+        if (
+            new_type != EngineType.PLAYER
+            and game.status != GameStatus.FINISHED
+            and engine_player_name(cfg) != previous_name
+        ):
+            cfg.player = None
+
         cfg.save()
+
+        # Re-resolve rated participants so the panel shows the new identity
+        # (e.g. "GNN (depth 8)") immediately after the change.
+        ensure_participants(game)
 
         # If we switch the side to move to PLAYER, clear any pending engine preview.
         try:

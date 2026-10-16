@@ -16,7 +16,7 @@ This repository combines two pieces that together form the app:
 - **Ratings** — classical Elo *and* a dependency‑free BayesElo (Coulom model) fit, shown on a leaderboard at `/players/`.
 - **PGN export** — every finished game exports as PGN; all hot‑seat games export as one bundle.
 - **PGN viewer / review** — step through any game move‑by‑move at `/games/<id>/review/` (buttons + ← → / Home / End keys), alongside the PGN export.
-- **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass). Selectable as an engine side in matches, with a Stockfish‑free move‑application fallback.
+- **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass). Each GNN side can also play with **minimax search at depth 3, 5 or 8** (selectable in the side panel; each depth is its own rated player). Selectable as an engine side in matches, with a Stockfish‑free move‑application fallback.
 - **Live GNN prediction** — the match page shows the model's nucleus moves for the current position and its predicted result (white / draw / black). Degrades gracefully when `torch`/the checkpoint is absent.
 
 ---
@@ -99,7 +99,9 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128
 cd BayesianELO-main\gnn-chess
 python plays.py chessgnn.pt --model-plays black          # top-p (nucleus) sampling, default top-p 0.9
 python plays.py chessgnn.pt --greedy                     # take the most probable candidate in the nucleus
-python plays.py chessgnn.pt --search --depth 3           # add a shallow minimax search on top of the policy
+python plays.py chessgnn.pt --search --depth 3           # minimax on top of the policy (3 / 5 / 8)
+python plays.py chessgnn.pt --search --depth 5
+python plays.py chessgnn.pt --search --depth 8
 ```
 
 **Estimate the model's Elo vs Stockfish:**

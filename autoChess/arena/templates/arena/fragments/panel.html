@@ -41,6 +41,19 @@
     </select>
   </div>
 
+  <div data-gnn-params class="{% if cfg.engine_type != 'GNN' %}hidden{% endif %}">
+    <label class="block text-sm text-slate-600 mb-1">Search depth</label>
+    <select data-search-depth name="search_depth" class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2">
+      <option value="0" {% if cfg.search_depth == 0 %}selected{% endif %}>Policy only (top-p sampling)</option>
+      <option value="3" {% if cfg.search_depth == 3 %}selected{% endif %}>Depth 3 · minimax</option>
+      <option value="5" {% if cfg.search_depth == 5 %}selected{% endif %}>Depth 5 · minimax</option>
+      <option value="8" {% if cfg.search_depth == 8 %}selected{% endif %}>Depth 8 · minimax</option>
+    </select>
+    <div class="text-xs text-slate-600 mt-1">
+      Minimax over the GNN's policy + value heads. Deeper searches look further ahead.
+    </div>
+  </div>
+
   <div class="flex-1"></div>
 
   <div data-player-params class="{% if cfg.engine_type == 'PLAYER' %}opacity-50{% endif %}">

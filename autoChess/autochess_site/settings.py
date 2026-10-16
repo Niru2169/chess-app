@@ -103,6 +103,9 @@ AUTOCHESS_GNN_DIR = _env("AUTOCHESS_GNN_DIR", str(BASE_DIR.parent / "BayesianELO
 AUTOCHESS_GNN_MODEL = _env("AUTOCHESS_GNN_MODEL", "") or ""
 AUTOCHESS_GNN_TOP_P = float(_env("AUTOCHESS_GNN_TOP_P", "0.9") or "0.9")
 AUTOCHESS_GNN_REFRESH_MS = int(_env("AUTOCHESS_GNN_REFRESH_MS", "1500") or "1500")
+# Tree width for the GNN's minimax search: a child is kept while its cumulative
+# path probability is at least this. Smaller = wider (and slower) search.
+AUTOCHESS_GNN_MIN_PROB = float(_env("AUTOCHESS_GNN_MIN_PROB", "0.001") or "0.001")
 
 _csrf = _env("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 if _csrf:

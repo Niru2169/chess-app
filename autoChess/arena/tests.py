@@ -493,3 +493,107 @@ class ReviewViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'data-ply="1"')
         self.assertNotContains(resp, "<html")
+
+
+class GnnSearchDepthTests(TestCase):
+    """GNN minimax search at selectable depths (policy only / 3 / 5 / 8)."""
+
+    def setUp(self):
+        gnn.reset_cache()
+
+    def tearDown(self):
+        gnn.reset_cache()
+
+    def _running_game(self, white=EngineType.PYCHESS, black=EngineType.GNN):
+        game = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN)
+        EngineConfig.objects.create(
+            game=game, side=Side.WHITE, engine_type=white,
+            strength_mode=StrengthMode.SKILL, strength_value=7,
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.BLACK, engine_type=black,
+            strength_mode=StrengthMode.SKILL, strength_value=7,
+        )
+        return game
+
+    def test_player_name_uses_search_depth(self):
+        from .services.rating import engine_player_name
+
+        policy = EngineConfig(engine_type=EngineType.GNN, search_depth=0)
+        deep = EngineConfig(engine_type=EngineType.GNN, search_depth=8)
+        self.assertEqual(engine_player_name(policy), "GNN (policy)")
+        self.assertEqual(engine_player_name(deep), "GNN (depth 8)")
+
+    def test_engine_forwards_search_depth_to_gnn(self):
+        from unittest import mock
+
+        from .services import engine
+
+        cfg = EngineConfig(engine_type=EngineType.GNN, search_depth=5)
+        with mock.patch.object(engine.gnn, "best_move", return_value="e2e4") as mocked:
+            best = engine.best_move(STARTPOS_FEN, cfg)
+
+        self.assertEqual(best.move, "e2e4")
+        self.assertEqual(mocked.call_args.kwargs.get("depth"), 5)
+
+    def test_update_config_sets_gnn_depth_without_strength_params(self):
+        game = self._running_game(white=EngineType.GNN, black=EngineType.PYCHESS)
+
+        # The panel disables the strength/movetime inputs for the GNN, so those
+        # fields are absent from the POST: the update must still be accepted.
+        resp = self.client.post(
+            f"/games/{game.id}/config/",
+            {"side": "WHITE", "engine_type": "GNN", "search_depth": "8"},
+            secure=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        cfg = game.engines.get(side=Side.WHITE)
+        self.assertEqual(cfg.engine_type, EngineType.GNN)
+        self.assertEqual(cfg.search_depth, 8)
+
+    def test_update_config_rejects_unsupported_depth(self):
+        game = self._running_game()
+        resp = self.client.post(
+            f"/games/{game.id}/config/",
+            {"side": "BLACK", "engine_type": "GNN", "search_depth": "4"},
+            secure=True,
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_panel_exposes_depth_selector(self):
+        game = self._running_game(white=EngineType.GNN, black=EngineType.STOCKFISH)
+        resp = self.client.get(f"/games/{game.id}/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="search_depth"')
+        self.assertContains(resp, "Depth 8 · minimax")
+
+    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    def test_search_moves_are_legal_at_every_depth(self):
+        legal = {move.uci() for move in chess.Board(STARTPOS_FEN).legal_moves}
+        for depth in (3, 5, 8):
+            with self.subTest(depth=depth):
+                uci = gnn.best_move(STARTPOS_FEN, depth=depth)
+                self.assertIn(uci, legal)
+
+    def test_changing_depth_resets_rated_participant(self):
+        game = self._running_game(white=EngineType.GNN, black=EngineType.PYCHESS)
+        cfg = game.engines.get(side=Side.WHITE)
+        # Simulate the participant having been resolved for the "policy" identity.
+        cfg.player = Player.objects.create(name="GNN (policy)", is_engine=True)
+        cfg.save(update_fields=["player", "updated_at"])
+
+        resp = self.client.post(
+            f"/games/{game.id}/config/",
+            {"side": "WHITE", "engine_type": "GNN", "search_depth": "5"},
+            secure=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        # The old participant is dropped and the depth-specific one is attached.
+        cfg.refresh_from_db()
+        self.assertEqual(cfg.player.name, "GNN (depth 5)")
+
+        # ... and the match page shows it on the next load.
+        page = self.client.get(f"/games/{game.id}/", secure=True)
+        self.assertContains(page, "GNN (depth 5)")

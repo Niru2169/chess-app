@@ -34,6 +34,15 @@ class EngineType(models.TextChoices):
     GNN = "GNN", "GNN (BayesianELO)"
     PLAYER = "PLAYER", "Player"
 
+# Minimax search depth for the GNN engine. 0 means "no search": moves are picked
+# directly from the policy with top-p (nucleus) sampling.
+GNN_DEPTH_CHOICES = [
+    (0, "Policy only (top-p)"),
+    (3, "Depth 3"),
+    (5, "Depth 5"),
+    (8, "Depth 8"),
+]
+
 STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 class Game(models.Model):
@@ -112,6 +121,9 @@ class EngineConfig(models.Model):
 
     movetime_ms = models.PositiveIntegerField(default=150)
     uci_options = models.JSONField(blank=True, default=dict)
+
+    # GNN only: minimax search depth on top of the policy (0 = policy only).
+    search_depth = models.PositiveSmallIntegerField(default=0, choices=GNN_DEPTH_CHOICES)
 
     # Rated participant for this side (human player or engine). Optional: unrated games leave it NULL.
     player = models.ForeignKey(

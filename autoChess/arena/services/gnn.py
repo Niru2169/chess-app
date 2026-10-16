@@ -9,6 +9,7 @@ import chess
 from django.conf import settings
 
 DEFAULT_TOP_P = 0.9
+DEFAULT_MIN_PROB = 0.001
 MAX_CANDIDATES = 8
 
 
@@ -101,6 +102,7 @@ def _load() -> dict:
             # Import `plays` first: it adds the sibling `ours_gpu_extras` folder to
             # sys.path, which is where `graph_builder` (and the other helpers) live.
             from plays import load_model, model_move, predict  # noqa: PLC0415
+            from search import search_move  # noqa: PLC0415
             from graph_builder import GraphBuilder  # noqa: PLC0415
 
             model_file = _model_path()
@@ -119,7 +121,7 @@ def _load() -> dict:
 
         _state.update(
             status="ready", model=model, builder=builder,
-            predict=predict, model_move=model_move,
+            predict=predict, model_move=model_move, search_move=search_move,
         )
         return _state
 
@@ -186,8 +188,14 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
     )
 
 
-def best_move(fen: str, top_p: float | None = None) -> str:
-    """Pick a move for ``fen`` with top-p (nucleus) selection.
+def best_move(fen: str, top_p: float | None = None, depth: int = 0,
+              min_prob: float | None = None) -> str:
+    """Pick a move for ``fen`` with the BayesianELO model.
+
+    ``depth`` selects a **minimax search** on top of the policy/value heads (the
+    usual 3 / 5 / 8 settings). ``depth=0`` skips the search and samples from the
+    top-p (nucleus) policy instead. ``min_prob`` is the search's width control: a
+    child is kept while its cumulative path probability is at least this value.
 
     Raises ``GnnUnavailable`` if the model cannot be used, so callers can report
     a clear engine error (e.g. a forfeit) instead of an opaque crash.
@@ -196,6 +204,12 @@ def best_move(fen: str, top_p: float | None = None) -> str:
         float(getattr(settings, "AUTOCHESS_GNN_TOP_P", DEFAULT_TOP_P))
         if top_p is None
         else float(top_p)
+    )
+    resolved_depth = max(0, int(depth or 0))
+    resolved_min_prob = (
+        float(getattr(settings, "AUTOCHESS_GNN_MIN_PROB", DEFAULT_MIN_PROB))
+        if min_prob is None
+        else float(min_prob)
     )
 
     if not getattr(settings, "AUTOCHESS_GNN_ENABLED", True):
@@ -212,7 +226,13 @@ def best_move(fen: str, top_p: float | None = None) -> str:
         return "(none)"
 
     try:
-        move = state["model_move"](state["model"], state["builder"], board, resolved_top_p)
+        if resolved_depth > 0:
+            move = state["search_move"](
+                state["model"], state["builder"], board,
+                max_depth=resolved_depth, min_prob=resolved_min_prob,
+            )
+        else:
+            move = state["model_move"](state["model"], state["builder"], board, resolved_top_p)
     except Exception as exc:  # pragma: no cover - depends on model behaviour
         raise GnnUnavailable(f"{type(exc).__name__}: {exc}") from exc
     return move.uci()

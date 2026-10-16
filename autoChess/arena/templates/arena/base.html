@@ -239,6 +239,7 @@ body {
     var mt = form.querySelector('[data-movetime]');
     var mtDisp = form.querySelector('[data-movetime-display]');
     var paramsWrap = form.querySelector('[data-player-params]');
+    var depthWrap = form.querySelector('[data-gnn-params]');
 
     // Panel label under title
     var panel = form.closest('.card') || form.parentElement;
@@ -257,19 +258,30 @@ body {
     function togglePlayerMode() {
       if (!typeSel) return;
       var isPlayer = (typeSel.value === 'PLAYER');
+      var isGnn = (typeSel.value === 'GNN');
+      // The UCI strength / thinking-time controls apply to Stockfish and PyChess.
+      // Human players and the GNN (configured by its search depth) ignore them.
+      var genericOff = isPlayer || isGnn;
 
       if (paramsWrap) {
-        if (isPlayer) paramsWrap.classList.add('opacity-50');
+        if (genericOff) paramsWrap.classList.add('opacity-50');
         else paramsWrap.classList.remove('opacity-50');
+      }
+
+      if (depthWrap) {
+        if (isGnn) depthWrap.classList.remove('hidden');
+        else depthWrap.classList.add('hidden');
       }
 
       [modeSel, strength, mt].forEach(function(el) {
         if (!el) return;
-        el.disabled = isPlayer;
+        el.disabled = genericOff;
       });
 
       if (isPlayer) {
         if (strengthHint) strengthHint.textContent = 'In player mode these settings do not apply.';
+      } else if (isGnn) {
+        if (strengthHint) strengthHint.textContent = 'The GNN uses Search depth instead.';
       } else {
         clampStrength();
       }
