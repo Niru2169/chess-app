@@ -5,7 +5,7 @@ This repository combines two pieces that together form the app:
 | Folder | What it is |
 | --- | --- |
 | [`autoChess/`](autoChess/) | **Django + HTMX web app** — match runner, live board, local hot‑seat play, Elo + BayesElo ratings with a leaderboard, and PGN export. |
-| [`BayesianELO-main/`](BayesianELO-main/) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. |
+| [`BayesianELO-main/`](BayesianELO-main/) · upstream: [duckyies/BayesianELO](https://github.com/duckyies/BayesianELO) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. Kudos to Ducky for the upstream BayesElo estimator this folder is built on. |
 
 ---
 
@@ -18,6 +18,40 @@ This repository combines two pieces that together form the app:
 - **PGN viewer / review** — step through any game move‑by‑move at `/games/<id>/review/` (buttons + ← → / Home / End keys), alongside the PGN export.
 - **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass). Each GNN side can also play with **minimax search at depth 3, 5 or 8** (selectable in the side panel; each depth is its own rated player). Selectable as an engine side in matches, with a Stockfish‑free move‑application fallback.
 - **Live GNN prediction** — the match page shows the model's nucleus moves for the current position and its predicted result (white / draw / black). Degrades gracefully when `torch`/the checkpoint is absent.
+
+---
+
+## Ambitions & intentions
+
+**What BayesElo is.** Classical Elo is *sequential*: ratings are updated one game at a time, in the
+order the games happened to be played, so the final numbers depend on that order and on who happened
+to meet whom. **BayesElo** (Rémi Coulom's method — <https://www.remi-coulom.fr/Bayesian-Elo>) instead
+fits *every* rating at once, as a single maximum‑likelihood / Bayesian estimate over the whole set of
+results, with an explicit **draw parameter** (`kappa`). That distinction matters in engine chess,
+where a large share of games are drawn: scoring a draw as half a win distorts the ratings, whereas
+BayesElo models the probability of a draw directly. And because ratings only mean something relative
+to a reference, players of known strength (Stockfish pinned to a `UCI_Elo`) serve as **anchors**.
+
+**Where the neural engine comes from.** The GNN side follows the approach described in:
+
+> Zięba, Marcin. (2023). *Exploring the applicability of graph neural networks for chess engines.*
+
+— the position is a graph with one node per square, and the network scores the **edges** (pairs of
+squares a piece could move between) as candidate moves.
+
+**What this project sets out to do.**
+
+- Make both rating ideas usable **live** rather than only as an offline batch job — Elo updates as
+  each game finishes, and BayesElo is re‑fitted over the games played so far.
+- Put everything in **one place**: watch engines play, play hot‑seat, step through the PGN, and see
+  the ratings move.
+- Treat the **GNN as a first‑class engine**, so it can be watched, played, exported and — most
+  importantly — **rated** against Stockfish and against itself.
+- Make **configurations comparable**: the same engine at a different search depth is a different
+  rated player, so the leaderboard can answer "is depth 8 actually stronger than depth 3?".
+- Keep the **web app dependency‑free**: the app reimplements the BayesElo fit
+  (`autoChess/arena/services/rating.py`) without `scipy`/`numpy`, while the upstream CLI tools in
+  `BayesianELO-main/` keep their scipy‑based fit for offline tournaments.
 
 ---
 
