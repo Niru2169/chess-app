@@ -20,11 +20,13 @@ def load_model(path: str, device) -> ChessGNN:
 
 
 @torch.no_grad()
-def move_probabilities(model, graph_builder, board: chess.Board):
-    """Policy distribution over the legal moves of ``board``.
+def policy_and_result(model, graph_builder, board: chess.Board):
+    """Legal-move policy plus the predicted game result for ``board``.
 
-    Returns a ``(moves, probs)`` pair aligned by index, where ``probs`` is a
-    softmax over the legal-move logits (illegal moves are masked out).
+    Returns a ``(moves, probs, result_probs)`` triple. ``moves`` and ``probs``
+    are aligned by index, where ``probs`` is a softmax over the legal-move
+    logits (illegal moves are masked out). ``result_probs`` is the model's
+    outcome head as ``{'white': p, 'draw': p, 'black': p}``.
     """
     device = graph_builder.device
     codes = torch.tensor(legal_codes(board), device=device, dtype=torch.long)
@@ -38,17 +40,49 @@ def move_probabilities(model, graph_builder, board: chess.Board):
     scores = scores.masked_fill(~is_edge, float('-inf'))
     probs = torch.softmax(scores, dim=0)
 
+    legal_idx = [idx for idx in range(int(scores.shape[0])) if bool(is_edge[idx])]
     moves = []
-    for idx in range(int(scores.shape[0])):
-        if not bool(is_edge[idx]):
-            continue
+    for idx in legal_idx:
         move = chess.Move(int(from_square[idx]), int(to_square[idx]))
         if move not in board.legal_moves:
             move = chess.Move(move.from_square, move.to_square, promotion=chess.QUEEN)
         moves.append(move)
 
-    legal_probs = probs[[idx for idx in range(int(scores.shape[0])) if bool(is_edge[idx])]]
-    return moves, legal_probs
+    outcome = torch.softmax(outputs['final_result'][0].float(), dim=0)
+    result_probs = {
+        'white': float(outcome[0]),
+        'draw': float(outcome[1]),
+        'black': float(outcome[2]),
+    }
+    return moves, probs[legal_idx], result_probs
+
+
+@torch.no_grad()
+def move_probabilities(model, graph_builder, board: chess.Board):
+    """Policy distribution over the legal moves of ``board``.
+
+    Returns a ``(moves, probs)`` pair aligned by index, where ``probs`` is a
+    softmax over the legal-move logits (illegal moves are masked out).
+    """
+    moves, probs, _ = policy_and_result(model, graph_builder, board)
+    return moves, probs
+
+
+@torch.no_grad()
+def predict(model, graph_builder, board: chess.Board, top_p: float = 0.9):
+    """Nucleus move candidates plus the predicted game result.
+
+    Returns ``(candidates, result_probs)``. ``candidates`` is the smallest set of
+    highest-probability moves whose cumulative probability reaches ``top_p`` (see
+    :func:`nucleus_moves`), as ``(move, probability)`` pairs. ``result_probs`` is
+    the outcome head from :func:`policy_and_result`.
+    """
+    moves, probs, result_probs = policy_and_result(model, graph_builder, board)
+    if top_p is None or top_p >= 1.0:
+        candidates = [(move, float(p)) for move, p in zip(moves, probs)]
+    else:
+        candidates = nucleus_moves(moves, probs, top_p)
+    return candidates, result_probs
 
 
 def nucleus_moves(moves, probs, top_p: float):

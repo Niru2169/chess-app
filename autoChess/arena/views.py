@@ -22,6 +22,7 @@ from .services.game_loop import tick, ensure_engine_rows, finalize_game
 from .services.pgn import build_pgn, is_pvp_game
 from .services.rating import ensure_participants
 from .services.engine import inspect_position
+from .services.gnn import predict_position
 
 
 def _player_can_move(game: Game) -> bool:
@@ -452,6 +453,22 @@ def moves_view(request: HttpRequest, game_id: int) -> HttpResponse:
     game = get_object_or_404(Game, pk=game_id)
     ctx = {"game": game, "moves": game.moves.all()}
     return render(request, "arena/fragments/moves.html", ctx)
+
+
+@require_http_methods(["GET"])
+def prediction_view(request: HttpRequest, game_id: int) -> HttpResponse:
+    """Live GNN prediction for the current position (HTMX fragment)."""
+    game = get_object_or_404(Game, pk=game_id)
+
+    raw_top_p = request.GET.get("top_p")
+    top_p: float | None
+    try:
+        top_p = float(raw_top_p) if raw_top_p not in (None, "") else None
+    except (TypeError, ValueError):
+        top_p = None
+
+    prediction = predict_position(game.fen, top_p)
+    return render(request, "arena/fragments/prediction.html", {"game": game, "prediction": prediction})
 
 
 @require_http_methods(["GET"])

@@ -76,6 +76,16 @@
     </div>
   </div>
 
+  {% if GNN_ENABLED %}
+  <!-- Live GNN prediction (Part 4): nucleus moves + predicted result, refreshed by HTMX -->
+  <div id="gnn-prediction" class="card p-4 shadow mt-4"
+       hx-get="{% url 'arena:prediction' game_id=game.id %}"
+       hx-trigger="load, every {{ GNN_REFRESH_MS }}ms"
+       hx-swap="innerHTML">
+    <div class="text-sm muted">Loading GNN prediction…</div>
+  </div>
+  {% endif %}
+
   <!-- Moves modal (hidden by default) -->
   <div id="moves-modal" class="hidden fixed inset-0 z-50 modal-backdrop p-4 flex items-start justify-center">
     <div class="card shadow w-full max-w-3xl mt-8 max-h-[80vh] overflow-auto">

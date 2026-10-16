@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
-from django.test import TestCase
+import unittest
+from pathlib import Path
+from django.test import TestCase, override_settings
 from django.conf import settings
 from django.utils import timezone
 
@@ -28,6 +30,7 @@ from .services.rating import (
     k_factor,
     rebuild_ratings,
 )
+from .services import gnn
 
 class FenParsingTests(TestCase):
     def test_parse_startpos(self):
@@ -334,3 +337,61 @@ class PgnExportTests(TestCase):
         game = Game.objects.latest("id")
         types = set(game.engines.values_list("engine_type", flat=True))
         self.assertEqual(types, {EngineType.PLAYER})
+
+
+def _gnn_ready() -> bool:
+    """Whether the GNN dependencies and checkpoint are present."""
+    import importlib.util
+
+    if importlib.util.find_spec("torch") is None:
+        return False
+    configured = str(getattr(settings, "AUTOCHESS_GNN_MODEL", "") or "")
+    path = Path(configured) if configured else Path(settings.AUTOCHESS_GNN_DIR) / "chessgnn.pt"
+    return path.is_file()
+
+
+class GnnPredictionTests(TestCase):
+    """Part 4: in-app GNN prediction (must degrade gracefully without torch/model)."""
+
+    def setUp(self):
+        gnn.reset_cache()
+
+    def tearDown(self):
+        gnn.reset_cache()
+
+    def test_disabled_returns_unavailable(self):
+        with override_settings(AUTOCHESS_GNN_ENABLED=False):
+            prediction = gnn.predict_position(STARTPOS_FEN)
+        self.assertFalse(prediction.available)
+        self.assertIn("disabled", prediction.error.lower())
+
+    def test_missing_model_is_reported_not_raised(self):
+        with override_settings(AUTOCHESS_GNN_DIR="C:/definitely/not/here", AUTOCHESS_GNN_MODEL=""):
+            prediction = gnn.predict_position(STARTPOS_FEN)
+        self.assertFalse(prediction.available)
+        self.assertTrue(prediction.error)
+
+    def test_prediction_view_renders(self):
+        game = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN)
+        EngineConfig.objects.create(
+            game=game, side=Side.WHITE, engine_type=EngineType.PYCHESS,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.BLACK, engine_type=EngineType.STOCKFISH,
+            strength_mode=StrengthMode.SKILL, strength_value=5,
+        )
+        resp = self.client.get(f"/games/{game.id}/prediction/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "GNN prediction")
+
+    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    def test_real_model_predicts_nucleus_and_result(self):
+        prediction = gnn.predict_position(STARTPOS_FEN, top_p=0.9)
+        self.assertTrue(prediction.available, prediction.error)
+        self.assertGreater(len(prediction.moves), 0)
+        # Nucleus candidates cannot cover more than the whole (normalised) policy.
+        self.assertLessEqual(prediction.total_mass, 1.0 + 1e-6)
+        self.assertAlmostEqual(
+            prediction.white_win + prediction.draw + prediction.black_win, 1.0, places=5
+        )

@@ -97,6 +97,13 @@ AUTOCHESS_PREVIEW_MS = int(os.getenv('AUTOCHESS_PREVIEW_MS', '350'))
 AUTOCHESS_RATE_ENGINES = _env_bool("AUTOCHESS_RATE_ENGINES", True)
 AUTOCHESS_BAYESELO_PRIOR_STD = float(_env("AUTOCHESS_BAYESELO_PRIOR_STD", "300") or "300")
 
+# GNN engine / prediction (optional: needs torch + the BayesianELO model checkpoint).
+AUTOCHESS_GNN_ENABLED = _env_bool("AUTOCHESS_GNN_ENABLED", True)
+AUTOCHESS_GNN_DIR = _env("AUTOCHESS_GNN_DIR", str(BASE_DIR.parent / "BayesianELO-main" / "gnn-chess")) or ""
+AUTOCHESS_GNN_MODEL = _env("AUTOCHESS_GNN_MODEL", "") or ""
+AUTOCHESS_GNN_TOP_P = float(_env("AUTOCHESS_GNN_TOP_P", "0.9") or "0.9")
+AUTOCHESS_GNN_REFRESH_MS = int(_env("AUTOCHESS_GNN_REFRESH_MS", "1500") or "1500")
+
 _csrf = _env("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 if _csrf:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(",") if o.strip()]

@@ -1,0 +1,46 @@
+<div class="panel-head">
+  <div class="panel-head-main">
+    <div class="panel-title">GNN prediction</div>
+    <div class="panel-subtitle">
+      {% if prediction.available %}
+        Live neural-network view of this position · top-p
+        <span class="font-semibold">{{ prediction.top_p|floatformat:2 }}</span>
+        · candidates cover <span class="font-semibold">{{ prediction.total_mass|floatformat:2 }}</span> of the policy
+      {% else %}
+        Live neural-network view of this position
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if not prediction.available %}
+  <div class="text-sm muted">{{ prediction.error }}</div>
+{% elif not prediction.moves %}
+  <div class="text-sm muted">{{ prediction.error|default:"No candidate moves." }}</div>
+{% else %}
+  <div class="space-y-1">
+    {% for move in prediction.moves %}
+      <div class="flex items-center gap-2 text-sm">
+        <span class="font-mono w-12 text-slate-800">{{ move.san }}</span>
+        <div class="flex-1 bg-slate-200/70 rounded h-3 overflow-hidden">
+          <div class="bg-indigo-500 h-3" style="width: {{ move.percent|floatformat:1 }}%"></div>
+        </div>
+        <span class="w-14 text-right font-mono text-slate-600">{{ move.percent|floatformat:1 }}%</span>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-3">
+    <div class="text-xs muted mb-1">Predicted result (white / draw / black)</div>
+    <div class="flex h-4 rounded overflow-hidden border border-slate-200">
+      <div class="bg-emerald-400" style="width: {{ prediction.white_pct|floatformat:1 }}%" title="White win"></div>
+      <div class="bg-slate-300" style="width: {{ prediction.draw_pct|floatformat:1 }}%" title="Draw"></div>
+      <div class="bg-slate-800" style="width: {{ prediction.black_pct|floatformat:1 }}%" title="Black win"></div>
+    </div>
+    <div class="flex justify-between text-xs muted mt-1">
+      <span>White {{ prediction.white_pct|floatformat:0 }}%</span>
+      <span>Draw {{ prediction.draw_pct|floatformat:0 }}%</span>
+      <span>Black {{ prediction.black_pct|floatformat:0 }}%</span>
+    </div>
+  </div>
+{% endif %}

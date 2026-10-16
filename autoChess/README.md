@@ -63,6 +63,20 @@ This is a Django + HTMX web app where two UCI chess engines (by default Stockfis
 The game is advanced through a **tick** endpoint: one tick = one half-move, with a transaction and a row lock.
 The "speed" is the **move interval**, not the think time.
 
+## GNN prediction
+
+The match page shows a **live GNN prediction** panel for the current position, powered by the graph
+neural network in `../BayesianELO-main`. Instead of a fixed number of "top N" moves it lists the
+**nucleus**: the smallest set of highest-probability moves whose cumulative probability reaches
+`top-p` (default 0.9 = the top 90 % of the policy). It also shows the model's predicted result
+(white / draw / black).
+
+- Config (`.env`): `AUTOCHESS_GNN_ENABLED`, `AUTOCHESS_GNN_DIR`, `AUTOCHESS_GNN_MODEL`,
+  `AUTOCHESS_GNN_TOP_P`, `AUTOCHESS_GNN_REFRESH_MS`.
+- Degrades gracefully: if `torch` or the checkpoint is missing the panel shows a short message
+  instead of failing; the app runs fine without the GNN.
+- Endpoint: `GET /games/<id>/prediction/` (HTMX fragment).
+
 ## License
 
 GPL-3.0-only (project code). External components are listed in `docs/third_party_licenses.md`.
