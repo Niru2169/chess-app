@@ -245,14 +245,12 @@ body {
     var panel = form.closest('.card') || form.parentElement;
     var typeLbl = panel ? panel.querySelector('[data-engine-type-label]') : null;
 
+    // Mirror the selected option's own text so the subtitle under the panel
+    // title can never drift from the engine dropdown.
     function setTypeLabel() {
       if (!typeSel || !typeLbl) return;
-      var v = typeSel.value;
-      if (v === 'STOCKFISH') typeLbl.textContent = 'Stockfish';
-      else if (v === 'PYCHESS') typeLbl.textContent = 'PyChess (python-chess)';
-      else if (v === 'GNN') typeLbl.textContent = 'GNN (BayesianELO)';
-      else if (v === 'PLAYER') typeLbl.textContent = 'Player';
-      else typeLbl.textContent = v;
+      var opt = typeSel.options ? typeSel.options[typeSel.selectedIndex] : null;
+      typeLbl.textContent = (opt && opt.text) ? opt.text : typeSel.value;
     }
 
     function togglePlayerMode() {

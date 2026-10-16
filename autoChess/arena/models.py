@@ -31,7 +31,7 @@ class StrengthMode(models.TextChoices):
 class EngineType(models.TextChoices):
     STOCKFISH = "STOCKFISH", "Stockfish (UCI)"
     PYCHESS = "PYCHESS", "PyChess (python-chess minimax)"
-    GNN = "GNN", "GNN (BayesianELO)"
+    GNN = "GNN", "GNN (graph neural net)"
     PLAYER = "PLAYER", "Player"
 
 # Minimax search depth for the GNN engine. 0 means "no search": moves are picked

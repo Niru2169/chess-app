@@ -36,7 +36,7 @@
     <select data-engine-type-select name="engine_type" class="w-full rounded-lg bg-white border border-slate-200 px-3 py-2">
       <option value="STOCKFISH" {% if cfg.engine_type == "STOCKFISH" %}selected{% endif %}>Stockfish</option>
       <option value="PYCHESS" {% if cfg.engine_type == "PYCHESS" %}selected{% endif %}>PyChess (python-chess)</option>
-      <option value="GNN" {% if cfg.engine_type == "GNN" %}selected{% endif %}>GNN (BayesianELO)</option>
+      <option value="GNN" {% if cfg.engine_type == "GNN" %}selected{% endif %}>GNN (graph neural net)</option>
       <option value="PLAYER" {% if cfg.engine_type == "PLAYER" %}selected{% endif %}>Player</option>
     </select>
   </div>

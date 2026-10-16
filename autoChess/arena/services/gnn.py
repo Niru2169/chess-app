@@ -190,7 +190,7 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
 
 def best_move(fen: str, top_p: float | None = None, depth: int = 0,
               min_prob: float | None = None) -> str:
-    """Pick a move for ``fen`` with the BayesianELO model.
+    """Pick a move for ``fen`` with the GNN model.
 
     ``depth`` selects a **minimax search** on top of the policy/value heads (the
     usual 3 / 5 / 8 settings). ``depth=0`` skips the search and samples from the

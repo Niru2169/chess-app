@@ -386,7 +386,7 @@ def _pychess_choose_move(fen: str, cfg: EngineConfig) -> str:
 
 
 def best_move(fen: str, cfg: EngineConfig) -> UciBestMove:
-    # Engine switch: STOCKFISH (UCI) vs PYCHESS (python-chess minimax) vs GNN (BayesianELO)
+    # Engine switch: STOCKFISH (UCI) vs PYCHESS (python-chess minimax) vs GNN (graph neural net)
     engine_type = getattr(cfg, 'engine_type', EngineType.STOCKFISH)
     if engine_type == EngineType.PYCHESS:
         mv = _pychess_choose_move(fen, cfg)
