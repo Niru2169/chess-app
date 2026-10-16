@@ -116,18 +116,60 @@ def create_game(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+def _board_context(game: Game, ply: int | None = None) -> dict:
+    """Context for the board panel (``fragments/board_panel.html``).
+
+    ``ply=None`` renders the live position. An integer renders the position after
+    that many half-moves, i.e. the ◀ ▶ history controls. While reviewing, moving
+    the pieces is disabled.
+    """
+    total = game.ply_count
+    if ply is None:
+        fen = game.fen
+        last_uci = game.pending_move_uci or game.last_move_uci
+        display_ply = total
+        reviewing = False
+        player_can_move = _player_can_move(game)
+    else:
+        display_ply = max(0, min(ply, total))
+        fen, last_uci = _fen_at_ply(game, display_ply)
+        reviewing = True
+        player_can_move = False
+
+    return {
+        "game": game,
+        "board_svg": render_board_svg(fen, last_uci),
+        "player_can_move": player_can_move,
+        "reviewing": reviewing,
+        "ply": display_ply,
+        "total": total,
+    }
+
+
 def game_view(request: HttpRequest, game_id: int) -> HttpResponse:
     game = get_object_or_404(Game, pk=game_id)
     ensure_engine_rows(game)
     ensure_participants(game)
-    board_svg = render_board_svg(game.fen, game.pending_move_uci or game.last_move_uci)
+
+    # ``?ply=N`` steps back through the moves played so far.
+    ply: int | None = None
+    raw_ply = request.GET.get("ply")
+    if raw_ply not in (None, ""):
+        try:
+            ply = int(raw_ply)
+        except (TypeError, ValueError):
+            ply = None
+
+    board_ctx = _board_context(game, ply)
+
+    # History stepping: the ◀ ▶ controls below the board swap only the board panel.
+    if request.headers.get("HX-Request"):
+        return render(request, "arena/fragments/board_panel.html", board_ctx)
+
     ctx = {
-        "game": game,
-        "board_svg": board_svg,
-        "player_can_move": _player_can_move(game),
         "white": game.engines.get(side=Side.WHITE),
         "black": game.engines.get(side=Side.BLACK),
-                "config_form": UpdateConfigForm(
+        "config_form": UpdateConfigForm(
             initial={
                 "strength_mode": StrengthMode.SKILL,
                 "strength_value": 10,
@@ -135,7 +177,8 @@ def game_view(request: HttpRequest, game_id: int) -> HttpResponse:
                 "side": "WHITE",
             }
         ),
-            }
+        **board_ctx,
+    }
     return render(request, "arena/game.html", ctx)
 
 
@@ -450,25 +493,31 @@ def tick_view(request: HttpRequest, game_id: int) -> HttpResponse:
     return _render_tick_oob(request, game)
 
 
+def _client_is_reviewing(request: HttpRequest) -> bool:
+    """Whether the browser is stepping through the move history right now.
+
+    The ◀ ▶ controls (fragments/board_nav.html) put this flag on the board's
+    outgoing requests, so the live poll can leave the board alone rather than
+    pushing a position nobody asked for.
+    """
+    return bool(request.POST.get("reviewing"))
+
+
 def _render_tick_oob(request: HttpRequest, game: Game) -> HttpResponse:
-    board_svg = render_board_svg(game.fen, game.pending_move_uci or game.last_move_uci)
     ctx = {
-        "game": game,
-        "board_svg": board_svg,
-        "player_can_move": _player_can_move(game),
         "white": game.engines.get(side=Side.WHITE),
         "black": game.engines.get(side=Side.BLACK),
+        "include_board": not _client_is_reviewing(request),
+        **_board_context(game),
     }
     return render(request, "arena/fragments/tick_response.html", ctx)
 
 def _render_full_oob(request: HttpRequest, game: Game) -> HttpResponse:
-    board_svg = render_board_svg(game.fen, game.pending_move_uci or game.last_move_uci)
     ctx = {
-        "game": game,
-        "board_svg": board_svg,
-        "player_can_move": _player_can_move(game),
         "white": game.engines.get(side=Side.WHITE),
         "black": game.engines.get(side=Side.BLACK),
+        "include_board": not _client_is_reviewing(request),
+        **_board_context(game),
     }
     return render(request, "arena/fragments/full_response.html", ctx)
 
@@ -548,8 +597,8 @@ def review_view(request: HttpRequest, game_id: int) -> HttpResponse:
 
 @require_http_methods(["GET"])
 def players_view(request: HttpRequest) -> HttpResponse:
-    """Leaderboard: rated participants ordered by Elo."""
-    players = Player.objects.all()
+    """Leaderboard: rated participants with at least one finished game, by Elo."""
+    players = Player.objects.filter(games_played__gt=0)
     return render(request, "arena/players.html", {"players": players})
 
 

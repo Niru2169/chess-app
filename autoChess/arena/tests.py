@@ -21,6 +21,7 @@ from .models import (
     GameStatus,
     Move,
 )
+from .services.board_svg import render_board_svg
 from .services.game_loop import tick, finalize_game
 from .services.pgn import build_pgn, is_pvp_game
 from .services.rating import (
@@ -208,6 +209,14 @@ class RatingViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Rating trend")
         self.assertContains(resp, "<svg")  # trend chart rendered
+
+    def test_leaderboard_hides_players_without_games(self):
+        Player.objects.create(name="Rated Rita", games_played=3, wins=2, losses=1)
+        Player.objects.create(name="Rookie Robin", games_played=0)
+
+        resp = self.client.get("/players/", secure=True)
+        self.assertContains(resp, "Rated Rita")
+        self.assertNotContains(resp, "Rookie Robin")
 
     def test_game_page_shows_participant_rating(self):
         game = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN)
@@ -597,3 +606,89 @@ class GnnSearchDepthTests(TestCase):
         # ... and the match page shows it on the next load.
         page = self.client.get(f"/games/{game.id}/", secure=True)
         self.assertContains(page, "GNN (depth 5)")
+
+
+class MatchHistoryTests(TestCase):
+    """Part 5: stepping back through the moves played so far (◀ ▶ on the match page)."""
+
+    MOVES = [("e2e4", "e4"), ("e7e5", "e5"), ("g1f3", "Nf3")]
+
+    def _game(self, status=GameStatus.FINISHED):
+        game = Game.objects.create(
+            status=status, fen=STARTPOS_FEN, result="1-0",
+            finished_at=timezone.now(), ply_count=len(self.MOVES),
+        )
+        for side in (Side.WHITE, Side.BLACK):
+            EngineConfig.objects.create(
+                game=game, side=side, engine_type=EngineType.PLAYER,
+                strength_mode=StrengthMode.SKILL, strength_value=10,
+            )
+        for idx, (uci, san) in enumerate(self.MOVES, start=1):
+            Move.objects.create(
+                game=game, ply_index=idx, uci=uci, san=san, fen_after=STARTPOS_FEN
+            )
+        return game
+
+    def _after_first_move_svg(self) -> str:
+        """The board after 1.e4, built independently of the view's ply logic."""
+        board = chess.Board(STARTPOS_FEN)
+        board.push(chess.Move.from_uci("e2e4"))
+        return render_board_svg(board.fen(), "e2e4")
+
+    def test_match_page_offers_history_controls(self):
+        game = self._game()
+        resp = self.client.get(f"/games/{game.id}/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Ply")
+        # Live at ply 3, so ◀ offers the previous ply.
+        self.assertContains(resp, f"/games/{game.id}/?ply=2")
+
+    def test_ply_parameter_shows_the_earlier_position(self):
+        game = self._game()
+        resp = self.client.get(f"/games/{game.id}/?ply=1", secure=True)
+        live = self.client.get(f"/games/{game.id}/", secure=True)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Reviewing ply")
+        self.assertContains(resp, 'id="board-review"')
+        self.assertContains(resp, self._after_first_move_svg(), html=False)
+        # ... while the live page shows the final position instead.
+        self.assertNotContains(live, self._after_first_move_svg(), html=False)
+
+    def test_reviewing_locks_the_piece_overlay(self):
+        # A running game where the human may move: stepping back must be read-only.
+        game = self._game(status=GameStatus.RUNNING)
+        live = self.client.get(f"/games/{game.id}/", secure=True)
+        review = self.client.get(f"/games/{game.id}/?ply=1", secure=True)
+
+        self.assertNotContains(live, "board-overlay pointer-events-none")
+        self.assertContains(review, "board-overlay pointer-events-none")
+
+    def test_htmx_step_returns_only_the_board_panel(self):
+        game = self._game()
+        resp = self.client.get(
+            f"/games/{game.id}/?ply=1", secure=True, HTTP_HX_REQUEST="true"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "<html")
+        self.assertContains(resp, "data-board-panel")
+        self.assertContains(resp, 'id="board-review"')
+        self.assertContains(resp, "● Live")
+
+    def test_ply_is_clamped_to_the_moves_played(self):
+        game = self._game()
+        for ply in (0, 1, 99, -5, "junk", ""):
+            with self.subTest(ply=ply):
+                resp = self.client.get(f"/games/{game.id}/?ply={ply}", secure=True)
+                self.assertEqual(resp.status_code, 200)
+
+    def test_live_poll_leaves_the_board_alone_while_reviewing(self):
+        game = self._game()
+        reviewing = self.client.post(
+            f"/games/{game.id}/tick/", {"reviewing": "1"}, secure=True
+        )
+        self.assertContains(reviewing, 'id="status-info"')
+        self.assertNotContains(reviewing, 'id="board"')
+
+        live = self.client.post(f"/games/{game.id}/tick/", {}, secure=True)
+        self.assertContains(live, 'id="board"')

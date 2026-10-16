@@ -1,0 +1,20 @@
+{% comment %}
+The board card: the board plus the ◀ ▶ history controls (see views._board_context).
+
+Two things keep the live poll from yanking the user out of an older position:
+
+* While reviewing, this panel's id is ``board-review`` instead of ``board``. A
+  tick that was already in flight when the user clicked still carries the board
+  swap, but it no longer has a ``#board`` to land on, so the step survives.
+* Ordinary ticks never carry the board at all: the controls send a ``reviewing``
+  flag along with their requests (views._client_is_reviewing).
+
+``oob`` is set when this panel is itself part of an out-of-band response.
+{% endcomment %}
+<div id="{% if reviewing %}board-review{% else %}board{% endif %}"
+     data-board-panel
+     {% if oob %}hx-swap-oob="true"{% endif %}
+     class="lg:col-span-6 card p-4 shadow">
+  {% include "arena/fragments/board.html" %}
+  {% include "arena/fragments/board_nav.html" %}
+</div>

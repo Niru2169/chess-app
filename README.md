@@ -12,8 +12,9 @@ This repository combines two pieces that together form the app:
 ## Features
 
 - **Match runner** — engine‑vs‑engine games advanced one ply at a time through a `tick` endpoint.
+- **Step back mid‑match** — on the match page, ⏮ ◀ ▶ walk the board through the moves played so far and **● Live** returns to following the game (it keeps running while you look back).
 - **Local hot‑seat** — two humans alternate on one device (no accounts, no login).
-- **Ratings** — classical Elo *and* a dependency‑free BayesElo (Coulom model) fit, shown on a leaderboard at `/players/`.
+- **Ratings** — classical Elo *and* a dependency‑free BayesElo (Coulom model) fit, shown on a leaderboard at `/players/` (participants appear once they have a rated game).
 - **PGN export** — every finished game exports as PGN; all hot‑seat games export as one bundle.
 - **PGN viewer / review** — step through any game move‑by‑move at `/games/<id>/review/` (buttons + ← → / Home / End keys), alongside the PGN export.
 - **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass). Each GNN side can also play with **minimax search at depth 3, 5 or 8** (selectable in the side panel; each depth is its own rated player). Selectable as an engine side in matches, with a Stockfish‑free move‑application fallback.
@@ -133,6 +134,7 @@ Open <http://127.0.0.1:8000/>.
 | --- | --- |
 | `/` | dashboard + match history |
 | `/games/new` | start a match (Engine vs Engine, Human vs Engine, Human vs Human) |
+| `/games/<id>/` | live match (add `?ply=<n>` to show an earlier position) |
 | `/players/` | Elo + BayesElo leaderboard |
 | `/players/<id>/` | player profile with rating history chart |
 | `/games/<id>/review/` | step‑through viewer (board at any ply + move list) |
@@ -145,7 +147,7 @@ Open <http://127.0.0.1:8000/>.
 - For engine play, set `AUTOCHESS_STOCKFISH_PATH` in `.env` to the Stockfish executable (or have `stockfish` on `PATH`).
 - `AUTOCHESS_RATE_ENGINES=1` lets engines take part in the rating pool.
 - Recompute every rating from scratch: `python manage.py rebuild_ratings`.
-- Tests: `python manage.py test` (40 tests).
+- Tests: `python manage.py test` (47 tests).
 
 ---
 

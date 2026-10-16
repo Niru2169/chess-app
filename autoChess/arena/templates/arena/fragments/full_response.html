@@ -6,6 +6,4 @@
   {% include "arena/fragments/speed_control.html" %}
 </div>
 
-<div id="board" hx-swap-oob="true" class="lg:col-span-6 card p-4 shadow">
-  {% include "arena/fragments/board.html" %}
-</div>
+{% if include_board %}{% include "arena/fragments/board_panel.html" with oob=True %}{% endif %}

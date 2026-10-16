@@ -3,11 +3,14 @@
 
 {% block content %}
 
-  <!-- Polling tick: server decides whether to advance based on next_action_at -->
+  <!-- Polling tick: server decides whether to advance based on next_action_at.
+       The ``reviewing`` flag tells it to leave the board alone while the user is
+       stepping through the history (see fragments/board_nav.html). -->
   <form id="tick-form"
         hx-post="{% url 'arena:tick' game_id=game.id %}"
         hx-trigger="every 500ms"
         hx-swap="none"
+        hx-vals="js:{reviewing: document.getElementById('board-review') ? '1' : ''}"
   >
     {% csrf_token %}
   </form>
@@ -20,7 +23,10 @@
           {% include "arena/fragments/status_info.html" %}
         </div>
 
-        <div class="flex flex-nowrap items-end justify-end gap-2 overflow-x-auto">
+        <!-- hx-vals is inherited: the controls below (and the speed form) all tell
+             the view whether the board is currently parked on an older move. -->
+        <div class="flex flex-wrap items-end justify-end gap-2"
+             hx-vals="js:{reviewing: document.getElementById('board-review') ? '1' : ''}">
   <div id="speed-control" class="shrink-0">
     {% include "arena/fragments/speed_control.html" %}
   </div>
@@ -72,9 +78,7 @@
       {% include "arena/fragments/panel.html" with side_label="WHITE" cfg=white side="WHITE" %}
     </div>
 
-    <div id="board" class="lg:col-span-6 card p-4 shadow">
-      {% include "arena/fragments/board.html" %}
-    </div>
+    {% include "arena/fragments/board_panel.html" %}
 
     <div id="right-panel" class="lg:col-span-3 card p-4 shadow flex flex-col">
       {% include "arena/fragments/panel.html" with side_label="BLACK" cfg=black side="BLACK" %}

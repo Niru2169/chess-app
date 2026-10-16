@@ -6,6 +6,4 @@
 <div id="turn-indicator-white" hx-swap-oob="innerHTML">{% if game.side_to_move == "w" %}<span class="turn-badge">TO MOVE</span>{% endif %}</div>
 <div id="turn-indicator-black" hx-swap-oob="innerHTML">{% if game.side_to_move == "b" %}<span class="turn-badge">TO MOVE</span>{% endif %}</div>
 
-<div id="board" hx-swap-oob="true" class="lg:col-span-6 card p-4 shadow">
-  {% include "arena/fragments/board.html" %}
-</div>
+{% if include_board %}{% include "arena/fragments/board_panel.html" with oob=True %}{% endif %}

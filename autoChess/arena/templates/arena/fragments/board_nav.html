@@ -1,0 +1,48 @@
+{% comment %}
+History controls under the board: ⏮ ◀ step back through the moves played so far,
+▶ steps forward, and "Live" returns to following the game.
+
+Each control carries a real ``href`` (works without JS, and for middle-click) and
+an ``hx-get`` that swaps just the board panel (views.game_view).
+{% endcomment %}
+<div class="flex flex-wrap items-center justify-center gap-2 mt-3 text-sm">
+
+  {% if ply > 0 %}
+    <a class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold px-3 py-1"
+       href="{% url 'arena:game' game_id=game.id %}?ply=0"
+       hx-get="{% url 'arena:game' game_id=game.id %}?ply=0"
+       hx-target="closest [data-board-panel]" hx-swap="outerHTML"
+       title="First position" aria-label="First position">⏮</a>
+    <a class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold px-3 py-1"
+       href="{% url 'arena:game' game_id=game.id %}?ply={{ ply|add:'-1' }}"
+       hx-get="{% url 'arena:game' game_id=game.id %}?ply={{ ply|add:'-1' }}"
+       hx-target="closest [data-board-panel]" hx-swap="outerHTML"
+       title="Previous move" aria-label="Previous move">◀</a>
+  {% else %}
+    <span class="rounded-lg bg-slate-100 text-slate-400 font-semibold px-3 py-1" title="First position">⏮</span>
+    <span class="rounded-lg bg-slate-100 text-slate-400 font-semibold px-3 py-1" title="Previous move">◀</span>
+  {% endif %}
+
+  <span class="px-2 text-slate-600">
+    {% if reviewing %}Reviewing ply{% else %}Ply{% endif %}
+    <span class="font-mono font-semibold">{{ ply }}</span> / <span class="font-mono">{{ total }}</span>
+  </span>
+
+  {% if ply < total %}
+    <a class="rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold px-3 py-1"
+       href="{% url 'arena:game' game_id=game.id %}?ply={{ ply|add:'1' }}"
+       hx-get="{% url 'arena:game' game_id=game.id %}?ply={{ ply|add:'1' }}"
+       hx-target="closest [data-board-panel]" hx-swap="outerHTML"
+       title="Next move" aria-label="Next move">▶</a>
+  {% else %}
+    <span class="rounded-lg bg-slate-100 text-slate-400 font-semibold px-3 py-1" title="Next move">▶</span>
+  {% endif %}
+
+  {% if reviewing %}
+    <a class="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-3 py-1"
+       href="{% url 'arena:game' game_id=game.id %}"
+       hx-get="{% url 'arena:game' game_id=game.id %}"
+       hx-target="closest [data-board-panel]" hx-swap="outerHTML"
+       title="Back to the live position">● Live</a>
+  {% endif %}
+</div>
