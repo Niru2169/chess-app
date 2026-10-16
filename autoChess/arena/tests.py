@@ -448,3 +448,48 @@ class GnnEngineTests(TestCase):
                 self.assertTrue((start.key or "").strip())
         finally:
             engine._POOL = saved_pool
+
+
+class ReviewViewTests(TestCase):
+    """Part 1: step-through PGN viewer."""
+
+    def _game(self):
+        game = Game.objects.create(
+            status=GameStatus.FINISHED, fen=STARTPOS_FEN, result="1-0",
+            finished_at=timezone.now(),
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.WHITE, engine_type=EngineType.PLAYER,
+            strength_mode=StrengthMode.SKILL, strength_value=10,
+        )
+        EngineConfig.objects.create(
+            game=game, side=Side.BLACK, engine_type=EngineType.PLAYER,
+            strength_mode=StrengthMode.SKILL, strength_value=10,
+        )
+        for idx, (uci, san) in enumerate(
+            [("e2e4", "e4"), ("e7e5", "e5"), ("g1f3", "Nf3")], start=1
+        ):
+            Move.objects.create(game=game, ply_index=idx, uci=uci, san=san, fen_after=STARTPOS_FEN)
+        return game
+
+    def test_review_page_renders_board_and_moves(self):
+        game = self._game()
+        resp = self.client.get(f"/games/{game.id}/review/", secure=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Game review")
+        self.assertContains(resp, "Nf3")
+
+    def test_review_clamps_out_of_range_ply(self):
+        game = self._game()
+        for ply in (0, 1, 3, 99):
+            resp = self.client.get(f"/games/{game.id}/review/?ply={ply}", secure=True)
+            self.assertEqual(resp.status_code, 200)
+
+    def test_review_returns_fragment_for_htmx(self):
+        game = self._game()
+        resp = self.client.get(
+            f"/games/{game.id}/review/?ply=1", secure=True, HTTP_HX_REQUEST="true"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'data-ply="1"')
+        self.assertNotContains(resp, "<html")

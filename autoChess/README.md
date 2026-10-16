@@ -63,6 +63,13 @@ This is a Django + HTMX web app where two UCI chess engines (by default Stockfis
 The game is advanced through a **tick** endpoint: one tick = one half-move, with a transaction and a row lock.
 The "speed" is the **move interval**, not the think time.
 
+## PGN viewer / review
+
+Every match (engine or hot-seat) can be stepped through at `GET /games/<id>/review/`: the board is
+rebuilt from the stored UCI moves at any ply, with **start / previous / next / end** buttons, a
+clickable move list and ← → / Home / End keyboard shortcuts. The board fragment is swapped in by
+HTMX. Reach it from the **Review** button on the match page.
+
 ## GNN prediction
 
 The match page shows a **live GNN prediction** panel for the current position, powered by the graph

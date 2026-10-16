@@ -47,6 +47,11 @@
             Moves
           </button>
 
+          <a class="rounded-xl bg-violet-500 hover:bg-violet-400 text-slate-950 font-semibold px-3 py-2 text-sm"
+             href="{% url 'arena:review' game_id=game.id %}">
+            Review
+          </a>
+
           <a class="rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-semibold px-3 py-2 text-sm"
              href="{% url 'arena:export_game_pgn' game_id=game.id %}">
             Export PGN

@@ -471,6 +471,56 @@ def prediction_view(request: HttpRequest, game_id: int) -> HttpResponse:
     return render(request, "arena/fragments/prediction.html", {"game": game, "prediction": prediction})
 
 
+def _fen_at_ply(game: Game, ply: int) -> tuple[str, str]:
+    """Return ``(fen, last_move_uci)`` after ``ply`` half-moves (ply=0 = start)."""
+    board = chess.Board(STARTPOS_FEN)
+    last_uci = ""
+    for move_row in game.moves.order_by("ply_index"):
+        if move_row.ply_index > ply:
+            break
+        try:
+            move = chess.Move.from_uci(move_row.uci)
+        except (ValueError, TypeError):
+            break
+        if move not in board.legal_moves:
+            promotion = chess.Move(move.from_square, move.to_square, promotion=chess.QUEEN)
+            if promotion in board.legal_moves:
+                move = promotion
+            else:
+                break
+        board.push(move)
+        last_uci = move.uci()
+    return board.fen(), last_uci
+
+
+@require_http_methods(["GET"])
+def review_view(request: HttpRequest, game_id: int) -> HttpResponse:
+    """Step-through viewer: the board at any ply, with navigation controls."""
+    game = get_object_or_404(Game, pk=game_id)
+    moves = list(game.moves.order_by("ply_index"))
+    total = len(moves)
+
+    try:
+        ply = int(request.GET.get("ply", total))
+    except (TypeError, ValueError):
+        ply = total
+    ply = max(0, min(ply, total))
+
+    fen, last_uci = _fen_at_ply(game, ply)
+    ctx = {
+        "game": game,
+        "moves": moves,
+        "ply": ply,
+        "total": total,
+        "first_ply": max(0, ply - 1) if ply > 0 else 0,
+        "board_svg": render_board_svg(fen, last_uci),
+        "fen": fen,
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "arena/fragments/review_board.html", ctx)
+    return render(request, "arena/review.html", ctx)
+
+
 @require_http_methods(["GET"])
 def players_view(request: HttpRequest) -> HttpResponse:
     """Leaderboard: rated participants ordered by Elo."""

@@ -14,6 +14,7 @@ urlpatterns = [
     path("games/<int:game_id>/click-square/", views.click_square_view, name="click_square"),
     path("games/<int:game_id>/moves/", views.moves_view, name="moves"),
     path("games/<int:game_id>/prediction/", views.prediction_view, name="prediction"),
+    path("games/<int:game_id>/review/", views.review_view, name="review"),
     path("games/<int:game_id>/config/", views.update_config, name="update_config"),
     path("games/<int:game_id>/speed/", views.update_speed, name="update_speed"),
     path("games/<int:game_id>/pgn/", views.export_game_pgn, name="export_game_pgn"),
