@@ -1,0 +1,3 @@
+[submodule "BayesianELO-main"]
+	path = BayesianELO-main
+	url = https://github.com/Niru2169/BayesianELO.git
