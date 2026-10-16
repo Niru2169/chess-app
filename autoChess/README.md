@@ -71,6 +71,11 @@ neural network in `../BayesianELO-main`. Instead of a fixed number of "top N" mo
 `top-p` (default 0.9 = the top 90 % of the policy). It also shows the model's predicted result
 (white / draw / black).
 
+The same model is also selectable as an **engine side** (engine type `GNN (BayesianELO)` in each
+side panel), so the GNN can play matches, be rated (Elo + BayesElo) and export PGN like any other
+engine. Without Stockfish installed, moves are applied with the python-chess fallback so
+engine-vs-engine games still run.
+
 - Config (`.env`): `AUTOCHESS_GNN_ENABLED`, `AUTOCHESS_GNN_DIR`, `AUTOCHESS_GNN_MODEL`,
   `AUTOCHESS_GNN_TOP_P`, `AUTOCHESS_GNN_REFRESH_MS`.
 - Degrades gracefully: if `torch` or the checkpoint is missing the panel shows a short message

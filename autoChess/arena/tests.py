@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+import chess
 from pathlib import Path
 from django.test import TestCase, override_settings
 from django.conf import settings
@@ -395,3 +396,55 @@ class GnnPredictionTests(TestCase):
         self.assertAlmostEqual(
             prediction.white_win + prediction.draw + prediction.black_win, 1.0, places=5
         )
+
+
+class GnnEngineTests(TestCase):
+    """Part 4: the GNN as a playable engine (EngineType.GNN)."""
+
+    def setUp(self):
+        gnn.reset_cache()
+
+    def tearDown(self):
+        gnn.reset_cache()
+
+    def _cfg(self):
+        return EngineConfig(
+            engine_type=EngineType.GNN,
+            strength_mode=StrengthMode.SKILL,
+            strength_value=10,
+            movetime_ms=100,
+        )
+
+    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    def test_gnn_best_move_is_legal(self):
+        from .services.engine import best_move
+
+        bm = best_move(STARTPOS_FEN, self._cfg())
+        legal = {move.uci() for move in chess.Board(STARTPOS_FEN).legal_moves}
+        self.assertIn(bm.move, legal)
+
+    def test_gnn_unavailable_becomes_uci_error(self):
+        from .services.engine import best_move
+        from .services.uci import UciError
+
+        with override_settings(AUTOCHESS_GNN_DIR="C:/definitely/not/here", AUTOCHESS_GNN_MODEL=""):
+            gnn.reset_cache()
+            with self.assertRaises(UciError):
+                best_move(STARTPOS_FEN, self._cfg())
+
+    def test_apply_and_inspect_falls_back_without_stockfish(self):
+        from .services import engine
+
+        saved_pool = engine._POOL
+        engine._POOL = None
+        try:
+            with override_settings(AUTOCHESS_STOCKFISH_PATH="C:/definitely/not/stockfish.exe"):
+                info = engine.apply_and_inspect(STARTPOS_FEN, "e2e4")
+                self.assertIsNotNone(info.fen)
+                # The pawn moved, so the placement differs from the start position.
+                self.assertNotEqual(info.fen.split()[0], STARTPOS_FEN.split()[0])
+
+                start = engine.inspect_position(STARTPOS_FEN)
+                self.assertTrue((start.key or "").strip())
+        finally:
+            engine._POOL = saved_pool

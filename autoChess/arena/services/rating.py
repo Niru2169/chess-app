@@ -207,6 +207,7 @@ def engine_player_name(cfg: EngineConfig) -> str:
     base = {
         EngineType.STOCKFISH: "Stockfish",
         EngineType.PYCHESS: "PyChess",
+        EngineType.GNN: "GNN",
     }.get(cfg.engine_type, str(cfg.engine_type).title())
     if cfg.strength_mode == StrengthMode.ELO:
         return f"{base} (elo {cfg.strength_value})"

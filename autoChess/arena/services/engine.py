@@ -5,11 +5,13 @@ import time
 import random
 
 import chess
+import chess.polyglot
 from dataclasses import dataclass
 from django.conf import settings
 
 from .uci import UciProcess, UciError, UciBestMove, DisplayInfo
 from ..models import EngineConfig, StrengthMode, EngineType
+from . import gnn
 
 @dataclass(frozen=True)
 class EngineRequest:
@@ -384,9 +386,16 @@ def _pychess_choose_move(fen: str, cfg: EngineConfig) -> str:
 
 
 def best_move(fen: str, cfg: EngineConfig) -> UciBestMove:
-    # Engine switch: STOCKFISH (UCI) vs PYCHESS (python-chess minimax)
-    if getattr(cfg, 'engine_type', EngineType.STOCKFISH) == EngineType.PYCHESS:
+    # Engine switch: STOCKFISH (UCI) vs PYCHESS (python-chess minimax) vs GNN (BayesianELO)
+    engine_type = getattr(cfg, 'engine_type', EngineType.STOCKFISH)
+    if engine_type == EngineType.PYCHESS:
         mv = _pychess_choose_move(fen, cfg)
+        return UciBestMove(move=mv)
+    if engine_type == EngineType.GNN:
+        try:
+            mv = gnn.best_move(fen)
+        except gnn.GnnUnavailable as exc:
+            raise UciError(f"GNN engine unavailable: {exc}") from exc
         return UciBestMove(move=mv)
     engine = pool().get()
     configure_engine(engine, cfg)
@@ -394,20 +403,53 @@ def best_move(fen: str, cfg: EngineConfig) -> UciBestMove:
     engine.is_ready(timeout_s=2.0)
     return engine.go_movetime(int(cfg.movetime_ms), timeout_s=max(3.0, cfg.movetime_ms / 1000.0 + 2.0))
 
-def apply_and_inspect(fen_before: str, uci_move: str) -> DisplayInfo:
-    """Apply the move via Stockfish and return the position based on 'd'.
 
-    The legality of the move is validated by checking whether the FEN changed.
+def _display_info_from_board(board: chess.Board) -> DisplayInfo:
+    """Describe a position using python-chess (Stockfish-free fallback)."""
+    checkers = board.checkers()
+    checkers_raw = " ".join(chess.square_name(sq) for sq in sorted(checkers)) if checkers else ""
+    try:
+        key = str(chess.polyglot.zobrist_hash(board))
+    except Exception:
+        key = ""
+    return DisplayInfo(fen=board.fen(), key=key, checkers_raw=checkers_raw)
+
+
+def apply_and_inspect(fen_before: str, uci_move: str) -> DisplayInfo:
+    """Apply ``uci_move`` and describe the resulting position.
+
+    Prefers Stockfish's non-standard 'd' command (Fen/Key/Checkers); falls back
+    to python-chess when no Stockfish binary is available so that games between
+    the built-in engines still run without an external binary.
+
+    Raises:
+        UciError: If the move is illegal or cannot be parsed.
     """
-    engine = pool().get()
-    engine.new_game()
-    engine.position_fen(fen_before, moves=[uci_move])
-    engine.is_ready(timeout_s=2.0)
-    return engine.display(timeout_s=2.0)
+    board = chess.Board(fen_before)
+    try:
+        move = chess.Move.from_uci(uci_move)
+    except ValueError as exc:
+        raise UciError(f"Invalid move: {uci_move!r}") from exc
+    if move not in board.legal_moves:
+        raise UciError(f"Illegal move: {uci_move!r}")
+
+    try:
+        engine = pool().get()
+        engine.new_game()
+        engine.position_fen(fen_before, moves=[uci_move])
+        engine.is_ready(timeout_s=2.0)
+        return engine.display(timeout_s=2.0)
+    except (UciError, OSError):
+        board.push(move)
+        return _display_info_from_board(board)
+
 
 def inspect_position(fen: str) -> DisplayInfo:
-    engine = pool().get()
-    engine.new_game()
-    engine.position_fen(fen)
-    engine.is_ready(timeout_s=2.0)
-    return engine.display(timeout_s=2.0)
+    try:
+        engine = pool().get()
+        engine.new_game()
+        engine.position_fen(fen)
+        engine.is_ready(timeout_s=2.0)
+        return engine.display(timeout_s=2.0)
+    except (UciError, OSError):
+        return _display_info_from_board(chess.Board(fen))

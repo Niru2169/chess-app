@@ -31,6 +31,7 @@ class StrengthMode(models.TextChoices):
 class EngineType(models.TextChoices):
     STOCKFISH = "STOCKFISH", "Stockfish (UCI)"
     PYCHESS = "PYCHESS", "PyChess (python-chess minimax)"
+    GNN = "GNN", "GNN (BayesianELO)"
     PLAYER = "PLAYER", "Player"
 
 STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"

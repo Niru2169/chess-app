@@ -15,7 +15,7 @@ This repository combines two pieces that together form the app:
 - **Local hot‑seat** — two humans alternate on one device (no accounts, no login).
 - **Ratings** — classical Elo *and* a dependency‑free BayesElo (Coulom model) fit, shown on a leaderboard at `/players/`.
 - **PGN export** — every finished game exports as PGN; all hot‑seat games export as one bundle.
-- **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass).
+- **GNN engine** — plays from a trained checkpoint; move selection uses **top‑p (nucleus)**: instead of a fixed number of top moves, it keeps the smallest highest‑probability set whose cumulative probability reaches `top-p` (e.g. the top 90% of the mass). Selectable as an engine side in matches, with a Stockfish‑free move‑application fallback.
 - **Live GNN prediction** — the match page shows the model's nucleus moves for the current position and its predicted result (white / draw / black). Degrades gracefully when `torch`/the checkpoint is absent.
 
 ---

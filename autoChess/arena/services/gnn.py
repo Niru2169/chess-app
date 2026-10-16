@@ -100,7 +100,7 @@ def _load() -> dict:
             import torch  # noqa: PLC0415  (optional, heavy import)
             # Import `plays` first: it adds the sibling `ours_gpu_extras` folder to
             # sys.path, which is where `graph_builder` (and the other helpers) live.
-            from plays import load_model, predict  # noqa: PLC0415
+            from plays import load_model, model_move, predict  # noqa: PLC0415
             from graph_builder import GraphBuilder  # noqa: PLC0415
 
             model_file = _model_path()
@@ -117,7 +117,10 @@ def _load() -> dict:
             _state.update(status="failed", error=f"{type(exc).__name__}: {exc}")
             raise GnnUnavailable(_state["error"]) from exc
 
-        _state.update(status="ready", model=model, builder=builder, predict=predict)
+        _state.update(
+            status="ready", model=model, builder=builder,
+            predict=predict, model_move=model_move,
+        )
         return _state
 
 
@@ -181,3 +184,35 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
         draw=float(result.get("draw", 0.0)),
         black_win=float(result.get("black", 0.0)),
     )
+
+
+def best_move(fen: str, top_p: float | None = None) -> str:
+    """Pick a move for ``fen`` with top-p (nucleus) selection.
+
+    Raises ``GnnUnavailable`` if the model cannot be used, so callers can report
+    a clear engine error (e.g. a forfeit) instead of an opaque crash.
+    """
+    resolved_top_p = (
+        float(getattr(settings, "AUTOCHESS_GNN_TOP_P", DEFAULT_TOP_P))
+        if top_p is None
+        else float(top_p)
+    )
+
+    if not getattr(settings, "AUTOCHESS_GNN_ENABLED", True):
+        raise GnnUnavailable("GNN prediction is disabled.")
+
+    state = _load()
+
+    try:
+        board = chess.Board(fen)
+    except ValueError as exc:
+        raise GnnUnavailable("Invalid position.") from exc
+
+    if not any(board.legal_moves):
+        return "(none)"
+
+    try:
+        move = state["model_move"](state["model"], state["builder"], board, resolved_top_p)
+    except Exception as exc:  # pragma: no cover - depends on model behaviour
+        raise GnnUnavailable(f"{type(exc).__name__}: {exc}") from exc
+    return move.uci()
