@@ -5,7 +5,7 @@ This repository combines two pieces that together form the app:
 | Folder | What it is |
 | --- | --- |
 | [`autoChess/`](autoChess/) | **Django + HTMX web app** — match runner, live board, local hot‑seat play, Elo + BayesElo ratings with a leaderboard, and PGN export. |
-| [`BayesianELO-main/`](BayesianELO-main/) · upstream: [duckyies/BayesianELO](https://github.com/duckyies/BayesianELO) (BayesElo) + [duckyies/ChessGNN](https://github.com/duckyies/ChessGNN) (GNN) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. Kudos to Ducky for the upstream BayesElo estimator and GNN this folder is built on. |
+| [`BayesianELO-main/`](BayesianELO-main/) · upstream: [duckyies/BayesianELO](https://github.com/duckyies/BayesianELO) (BayesElo + `gnn-chess/`) · related: [duckyies/ChessGNN](https://github.com/duckyies/ChessGNN) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. Kudos to Ducky for the upstream BayesElo estimator and GNN this folder is built on. |
 
 ---
 
@@ -32,8 +32,9 @@ where a large share of games are drawn: scoring a draw as half a win distorts th
 BayesElo models the probability of a draw directly. And because ratings only mean something relative
 to a reference, players of known strength (Stockfish pinned to a `UCI_Elo`) serve as **anchors**.
 
-**Where the neural engine comes from.** The network in this folder is
-[duckyies/ChessGNN](https://github.com/duckyies/ChessGNN), which follows the approach described in:
+**Where the neural engine comes from.** The `gnn-chess/` network ships inside Ducky's
+[BayesianELO](https://github.com/duckyies/BayesianELO); his related GNN research lives in
+[ChessGNN](https://github.com/duckyies/ChessGNN). It follows the approach described in:
 
 > Zięba, Marcin. (2023). *Exploring the applicability of graph neural networks for chess engines.*
 
