@@ -147,7 +147,7 @@ Open <http://127.0.0.1:8000/>.
 - For engine play, set `AUTOCHESS_STOCKFISH_PATH` in `.env` to the Stockfish executable (or have `stockfish` on `PATH`).
 - `AUTOCHESS_RATE_ENGINES=1` lets engines take part in the rating pool.
 - Recompute every rating from scratch: `python manage.py rebuild_ratings`.
-- Tests: `python manage.py test` (47 tests).
+- Tests: `python manage.py test` (48 tests).
 
 ---
 

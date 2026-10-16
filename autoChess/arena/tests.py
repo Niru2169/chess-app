@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import unittest
 import chess
 from pathlib import Path
@@ -241,16 +242,27 @@ class IntegrationStockfishTests(TestCase):
 
     def test_10_ply_runs_if_engine_available(self):
         exe = getattr(settings, "AUTOCHESS_STOCKFISH_PATH", "stockfish")
-        # Skip if binary not found on PATH and not an absolute path.
-        if os.path.sep not in exe and os.name == "nt":
-            # On Windows, stockfish on PATH is less likely; allow env override.
-            if exe == "stockfish":
-                self.skipTest("Stockfish is not configured on Windows.")
-        if exe == "stockfish" and os.name != "nt":
-            # Linux/mac: assume may exist; still might not
-            pass
+        # The setting is either an absolute path or a bare name resolved on PATH.
+        if not (os.path.isfile(exe) or shutil.which(exe)):
+            self.skipTest(f"Stockfish not found: {exe!r}")
 
-        g = Game.objects.create(status=GameStatus.RUNNING, fen=STARTPOS_FEN, move_interval_ms=0)
+        from .services import engine as engine_service
+        from .services.uci import UciError
+
+        # A present binary can still be unusable on a loaded host: bringing
+        # Stockfish up needs ~110 MB of free commit for its NNUE network. Treat
+        # that as "no engine here" rather than a failure of the match loop.
+        try:
+            engine_service.pool().get()
+        except (UciError, OSError) as exc:
+            engine_service._POOL = None
+            self.skipTest(f"Stockfish could not be started here: {exc}")
+
+        # preview_ms=1: every tick applies the move the previous tick highlighted
+        # instead of racing the default 350 ms highlight window.
+        g = Game.objects.create(
+            status=GameStatus.RUNNING, fen=STARTPOS_FEN, move_interval_ms=0, preview_ms=1,
+        )
         EngineConfig.objects.create(game=g, side=Side.WHITE, strength_mode=StrengthMode.SKILL, strength_value=1, movetime_ms=50)
         EngineConfig.objects.create(game=g, side=Side.BLACK, strength_mode=StrengthMode.SKILL, strength_value=1, movetime_ms=50)
 
@@ -576,6 +588,13 @@ class GnnSearchDepthTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'name="search_depth"')
         self.assertContains(resp, "Depth 8 · minimax")
+
+    def test_gnn_label_does_not_imply_bayeselo(self):
+        """The GNN engine and the BayesElo rating are unrelated: say so in the UI."""
+        game = self._running_game(white=EngineType.GNN, black=EngineType.STOCKFISH)
+        resp = self.client.get(f"/games/{game.id}/", secure=True)
+        self.assertContains(resp, "GNN (graph neural net)")
+        self.assertNotContains(resp, "GNN (BayesianELO)")
 
     @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
     def test_search_moves_are_legal_at_every_depth(self):

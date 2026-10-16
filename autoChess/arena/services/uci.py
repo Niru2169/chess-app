@@ -21,6 +21,13 @@ class DisplayInfo:
 class UciError(RuntimeError):
     """UCI communication error or engine problem."""
 
+# Bringing an engine up is the slow part: a cold Stockfish has to map its binary
+# and initialise a large NNUE network, which easily takes a couple of seconds on a
+# busy machine (and the very first start of a process is the slowest). Budget the
+# lifecycle commands generously so a slow start can never forfeit a match; the
+# per-move budgets below stay tight.
+_STARTUP_TIMEOUT_S = 10.0
+
 class UciProcess:
     """UCI engine wrapper: a single subprocess plus a reader thread.
 
@@ -73,12 +80,12 @@ class UciProcess:
         self._ensure()
         v = "true" if value is True else "false" if value is False else str(value)
         self._send(f"setoption name {name} value {v}")
-        self.is_ready(timeout_s=2.0)
+        self.is_ready(timeout_s=_STARTUP_TIMEOUT_S)
 
     def new_game(self) -> None:
         self._ensure()
         self._send("ucinewgame")
-        self.is_ready(timeout_s=2.0)
+        self.is_ready(timeout_s=_STARTUP_TIMEOUT_S)
 
     def position_fen(self, fen: str, moves: Iterable[str] | None = None) -> None:
         self._ensure()
@@ -132,7 +139,7 @@ class UciProcess:
                 break
         return DisplayInfo(fen=fen, key=key, checkers_raw=checkers)
 
-    def is_ready(self, timeout_s: float = 2.0) -> None:
+    def is_ready(self, timeout_s: float = _STARTUP_TIMEOUT_S) -> None:
         self._ensure()
         self._send("isready")
         _ = self._wait_for_exact("readyok", timeout_s=timeout_s)
@@ -153,7 +160,25 @@ class UciProcess:
 
     def _uci_handshake(self) -> None:
         self._send("uci")
-        _ = self._wait_for_exact("uciok", timeout_s=2.5)
+        _ = self._wait_for_exact("uciok", timeout_s=_STARTUP_TIMEOUT_S)
+
+    def _read_line(self, remaining_s: float, context: str) -> str:
+        """Return the next engine line, or an empty string if none arrived yet.
+
+        Raises:
+            UciError: If the engine process has died, which is worth reporting
+                immediately: an engine that cannot allocate its network should not
+                look like a slow engine until the whole budget runs out.
+        """
+        try:
+            return self._lines.get(timeout=min(remaining_s, 0.25)).strip()
+        except queue.Empty:
+            proc = self._proc
+            if proc is not None and proc.poll() is not None:
+                raise UciError(
+                    f"Engine exited (code {proc.returncode}) while waiting for {context}."
+                )
+            return ""
 
     def _wait_for_exact(self, token: str, timeout_s: float) -> str:
         start = time.monotonic()
@@ -161,12 +186,8 @@ class UciProcess:
             remaining = timeout_s - (time.monotonic() - start)
             if remaining <= 0:
                 raise UciError(f"Timeout while waiting for {token!r}.")
-            try:
-                line = self._lines.get(timeout=remaining).strip()
-            except queue.Empty:
-                raise UciError(f"Timeout while waiting for {token!r}.")
-            if line == token:
-                return line
+            if self._read_line(remaining, repr(token)) == token:
+                return token
 
     def _wait_for_prefix(self, prefix: str, timeout_s: float) -> str:
         start = time.monotonic()
@@ -174,10 +195,7 @@ class UciProcess:
             remaining = timeout_s - (time.monotonic() - start)
             if remaining <= 0:
                 raise UciError(f"Timeout while waiting for a {prefix!r} line.")
-            try:
-                line = self._lines.get(timeout=remaining).strip()
-            except queue.Empty:
-                raise UciError(f"Timeout while waiting for a {prefix!r} line.")
+            line = self._read_line(remaining, f"a {prefix!r} line")
             if line.startswith(prefix):
                 return line
 

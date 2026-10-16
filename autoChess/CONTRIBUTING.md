@@ -24,4 +24,4 @@ python manage.py test
 ## Tests
 
 - Unit tests: FEN parsing, move highlighting, draw detection logic.
-- Integration tests: only run if Stockfish is configured (skipped otherwise).
+- Integration tests: only run if Stockfish is configured (skipped otherwise, or when the engine cannot start on this host).
