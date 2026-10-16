@@ -38,6 +38,10 @@ to a reference, players of known strength (Stockfish pinned to a `UCI_Elo`) serv
 
 > Zięba, Marcin. (2023). *Exploring the applicability of graph neural networks for chess engines.*
 
+Concretely: the **64 squares are the graph's nodes**, connected by **piece mobility** (the movement
+patterns of the piece standing on each square); each node carries a 12-feature vector (piece type,
+colour, square colour, rank/file, en-passant), and the move policy is a softmax over the graph's
+**edges** — the candidate moves.
 
 **What this project sets out to do.**
 
