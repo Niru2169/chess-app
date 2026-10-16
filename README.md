@@ -38,8 +38,6 @@ to a reference, players of known strength (Stockfish pinned to a `UCI_Elo`) serv
 
 > Zięba, Marcin. (2023). *Exploring the applicability of graph neural networks for chess engines.*
 
-— the position is a graph with one node per square, and the network scores the **edges** (pairs of
-squares a piece could move between) as candidate moves.
 
 **What this project sets out to do.**
 
