@@ -27,6 +27,10 @@
   .sq.last-to   { background: var(--ac-sq-last2); }
   .card { background: rgba(255,255,255,0.84); border: 1px solid rgba(148,163,184,0.45); border-radius: 1rem; backdrop-filter: blur(6px); }
   .muted { color: var(--ac-muted); }
+
+  /* Blur GNN predictions when it's a human's turn (prevents hints) */
+  .blur-hint { filter: blur(8px); }
+  .blur-hint * { pointer-events: none; user-select: none; }
   /* Coordinates and piece coloring */
   .board-frame {
   display: grid;

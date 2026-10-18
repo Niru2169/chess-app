@@ -534,6 +534,12 @@ def prediction_view(request: HttpRequest, game_id: int) -> HttpResponse:
     """Live GNN prediction for the current position (HTMX fragment)."""
     game = get_object_or_404(Game, pk=game_id)
 
+    # If the side to move is a human (PLAYER), blur the move predictions so
+    # they don't act as hints. The GNN's own turn can show its "thinking".
+    stm = game.side_to_move
+    cfg = game.engines.get(side=Side.WHITE if stm == "w" else Side.BLACK)
+    blur_moves = cfg.engine_type == EngineType.PLAYER
+
     raw_top_p = request.GET.get("top_p")
     top_p: float | None
     try:
@@ -542,7 +548,11 @@ def prediction_view(request: HttpRequest, game_id: int) -> HttpResponse:
         top_p = None
 
     prediction = predict_position(game.fen, top_p)
-    return render(request, "arena/fragments/prediction.html", {"game": game, "prediction": prediction})
+    return render(request, "arena/fragments/prediction.html", {
+        "game": game,
+        "prediction": prediction,
+        "blur_moves": blur_moves,
+    })
 
 
 def _fen_at_ply(game: Game, ply: int) -> tuple[str, str]:
