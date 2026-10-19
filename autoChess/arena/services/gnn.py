@@ -135,6 +135,19 @@ def is_available() -> bool:
     return True
 
 
+def unavailable_reason() -> str:
+    """Why the GNN cannot be loaded (empty string when it can).
+
+    Handy when the checkpoint exists but no longer fits the model, e.g. after an
+    architecture change: the caller can report the mismatch instead of guessing.
+    """
+    try:
+        _load()
+    except GnnUnavailable as exc:
+        return str(exc)
+    return ""
+
+
 def reset_cache() -> None:
     """Drop the cached model/checkpoint (mainly for tests)."""
     with _lock:

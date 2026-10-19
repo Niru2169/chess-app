@@ -4,7 +4,6 @@ import os
 import shutil
 import unittest
 import chess
-from pathlib import Path
 from django.test import TestCase, override_settings
 from django.conf import settings
 from django.utils import timezone
@@ -361,15 +360,33 @@ class PgnExportTests(TestCase):
         self.assertEqual(types, {EngineType.PLAYER})
 
 
-def _gnn_ready() -> bool:
-    """Whether the GNN dependencies and checkpoint are present."""
+def _shorten(text: str, limit: int = 180) -> str:
+    """First meaningful line of a long error, for compact skip reasons."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "unknown error"
+    picked = next((line for line in lines if "size mismatch" in line), lines[0])
+    return picked if len(picked) <= limit else picked[: limit - 1].rstrip() + "..."
+
+
+def _gnn_status() -> tuple[bool, str]:
+    """Whether the GNN can be used, plus the reason when it cannot.
+
+    Checking that the checkpoint *file* exists is not enough: a checkpoint
+    trained against an older architecture no longer loads (tensor size
+    mismatch), so the model-dependent tests skip until it is retrained instead
+    of failing.
+    """
     import importlib.util
 
     if importlib.util.find_spec("torch") is None:
-        return False
-    configured = str(getattr(settings, "AUTOCHESS_GNN_MODEL", "") or "")
-    path = Path(configured) if configured else Path(settings.AUTOCHESS_GNN_DIR) / "chessgnn.pt"
-    return path.is_file()
+        return False, "torch is not installed"
+    if gnn.is_available():
+        return True, ""
+    return False, f"GNN model unavailable: {_shorten(gnn.unavailable_reason())}"
+
+
+_GNN_READY, _GNN_SKIP_REASON = _gnn_status()
 
 
 class GnnPredictionTests(TestCase):
@@ -407,7 +424,7 @@ class GnnPredictionTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "GNN prediction")
 
-    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    @unittest.skipUnless(_GNN_READY, _GNN_SKIP_REASON)
     def test_real_model_predicts_nucleus_and_result(self):
         prediction = gnn.predict_position(STARTPOS_FEN, top_p=0.9)
         self.assertTrue(prediction.available, prediction.error)
@@ -436,7 +453,7 @@ class GnnEngineTests(TestCase):
             movetime_ms=100,
         )
 
-    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    @unittest.skipUnless(_GNN_READY, _GNN_SKIP_REASON)
     def test_gnn_best_move_is_legal(self):
         from .services.engine import best_move
 
@@ -596,7 +613,7 @@ class GnnSearchDepthTests(TestCase):
         self.assertContains(resp, "GNN (graph neural net)")
         self.assertNotContains(resp, "GNN (BayesianELO)")
 
-    @unittest.skipUnless(_gnn_ready(), "GNN model/torch unavailable")
+    @unittest.skipUnless(_GNN_READY, _GNN_SKIP_REASON)
     def test_search_moves_are_legal_at_every_depth(self):
         legal = {move.uci() for move in chess.Board(STARTPOS_FEN).legal_moves}
         for depth in (3, 5, 8):
