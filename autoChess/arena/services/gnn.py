@@ -189,7 +189,8 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
 
 
 def best_move(fen: str, top_p: float | None = None, depth: int = 0,
-              min_prob: float | None = None) -> str:
+              min_prob: float | None = None, mode: str = 'minimax',
+              n_subgraphs: int = 1) -> str:
     """Pick a move for ``fen`` with the GNN model.
 
     ``depth`` selects a **minimax search** on top of the policy/value heads (the
@@ -230,6 +231,7 @@ def best_move(fen: str, top_p: float | None = None, depth: int = 0,
             move = state["search_move"](
                 state["model"], state["builder"], board,
                 max_depth=resolved_depth, min_prob=resolved_min_prob,
+                mode=mode, n_subgraphs=n_subgraphs,
             )
         else:
             move = state["model_move"](state["model"], state["builder"], board, resolved_top_p)
