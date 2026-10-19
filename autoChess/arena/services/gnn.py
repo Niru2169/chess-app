@@ -13,6 +13,19 @@ DEFAULT_MIN_PROB = 0.001
 MAX_CANDIDATES = 8
 
 
+def _summarise_error(text: str, limit: int = 220) -> str:
+    """Collapse a multi-line exception dump into one readable line.
+
+    Checkpoint and tensor errors carry dozens of ``state_dict`` lines; the panel
+    and the forfeit reason only need the actionable one.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "GNN unavailable"
+    picked = next((line for line in lines if "size mismatch" in line), lines[0])
+    return picked if len(picked) <= limit else picked[: limit - 1].rstrip() + "…"
+
+
 class GnnUnavailable(RuntimeError):
     """Raised when the GNN model cannot be loaded or used."""
 
@@ -168,7 +181,7 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
     try:
         state = _load()
     except GnnUnavailable as exc:
-        return Prediction(False, resolved_top_p, error=str(exc))
+        return Prediction(False, resolved_top_p, error=_summarise_error(str(exc)))
 
     try:
         board = chess.Board(fen)
@@ -181,7 +194,7 @@ def predict_position(fen: str, top_p: float | None = None) -> Prediction:
     try:
         candidates, result = state["predict"](state["model"], state["builder"], board, resolved_top_p)
     except Exception as exc:  # pragma: no cover - depends on model behaviour
-        return Prediction(False, resolved_top_p, error=f"{type(exc).__name__}: {exc}")
+        return Prediction(False, resolved_top_p, error=_summarise_error(f"{type(exc).__name__}: {exc}"))
 
     moves = []
     for move, probability in candidates[:MAX_CANDIDATES]:
@@ -228,7 +241,10 @@ def best_move(fen: str, top_p: float | None = None, depth: int = 0,
     if not getattr(settings, "AUTOCHESS_GNN_ENABLED", True):
         raise GnnUnavailable("GNN prediction is disabled.")
 
-    state = _load()
+    try:
+        state = _load()
+    except GnnUnavailable as exc:
+        raise GnnUnavailable(_summarise_error(str(exc))) from exc
 
     try:
         board = chess.Board(fen)
@@ -247,5 +263,5 @@ def best_move(fen: str, top_p: float | None = None, depth: int = 0,
         else:
             move = state["model_move"](state["model"], state["builder"], board, resolved_top_p)
     except Exception as exc:  # pragma: no cover - depends on model behaviour
-        raise GnnUnavailable(f"{type(exc).__name__}: {exc}") from exc
+        raise GnnUnavailable(_summarise_error(f"{type(exc).__name__}: {exc}")) from exc
     return move.uci()
