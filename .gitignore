@@ -11,6 +11,9 @@ venv/
 # Large redundant archives (duplicates of the working trees)
 ours_gpu.zip
 
+# Local scratch dumps (concatenated sources for review/pasting)
+combined_content.txt
+
 # OS
 .DS_Store
 Thumbs.db
