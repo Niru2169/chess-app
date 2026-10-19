@@ -11,6 +11,16 @@ venv/
 # Large redundant archives (duplicates of the working trees)
 ours_gpu.zip
 
+# Training data / engine outputs (large, regenerated)
+CCRL-*.pgn.7z
+training_data/
+BayesianELO-main/data/
+weights_backup/
+
+# Local scratch
+he-sent-me-these-commands.txt
+source papers/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -108,6 +108,29 @@ git submodule update --remote BayesianELO-main   # latest commit from our own re
 
 Work on the engine inside `BayesianELO-main/` and commit/push it as its own repo.
 
+### Training the engine
+
+The engine's dependencies live in
+[`BayesianELO-main/requirements.txt`](BayesianELO-main/requirements.txt) — install them into the
+same venv as the app (or any Python 3.10+ environment) before training:
+
+```powershell
+pip install -r BayesianELO-main\requirements.txt
+```
+
+Retrain from a PGN database (the CCRL-4040 file is a 7z archive — extract it first, then point
+`preprocess.py` at the resulting `.pgn`):
+
+```powershell
+cd BayesianELO-main
+python gnn-chess\preprocess.py ..\training_data\games.pgn --out data --sample-rate 0.1 --workers 20
+python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda
+```
+
+`preprocess.py` writes resumable `.npz` shards (re-running skips shards that already exist) and
+`train.py` takes `--device cuda|cpu|xla`. The earlier GATEAU/MCTS experiments are parked on the
+`archive/gnn-training-2026-10-19` branch.
+
 ---
 
 ## A. Run the web app (`autoChess`)
