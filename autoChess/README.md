@@ -99,8 +99,9 @@ can compare depths directly.
 
 - Config (`.env`): `AUTOCHESS_GNN_ENABLED`, `AUTOCHESS_GNN_DIR`, `AUTOCHESS_GNN_MODEL`,
   `AUTOCHESS_GNN_TOP_P`, `AUTOCHESS_GNN_REFRESH_MS`, `AUTOCHESS_GNN_MIN_PROB`.
-- Degrades gracefully: if `torch` or the checkpoint is missing the panel shows a short message
-  instead of failing; the app runs fine without the GNN.
+- Degrades gracefully: if `torch` is missing, or the checkpoint is absent, or the checkpoint no
+  longer matches the model (e.g. after an architecture change), the panel shows a short one-line
+  message instead of failing; the app runs fine without the GNN.
 - Endpoint: `GET /games/<id>/prediction/` (HTMX fragment).
 
 ## License

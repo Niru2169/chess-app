@@ -169,20 +169,39 @@ python plays.py chessgnn.pt --greedy                     # take the most probabl
 python plays.py chessgnn.pt --search --depth 3           # minimax on top of the policy (3 / 5 / 8)
 python plays.py chessgnn.pt --search --depth 5
 python plays.py chessgnn.pt --search --depth 8
+python plays.py chessgnn.pt --search-mode mcts           # batched PUCT MCTS instead of minimax
+python plays.py chessgnn.pt --search-mode mcts --simulations 256
+python plays.py chessgnn.pt --search-mode mcts --subgraphs 4
 ```
+
+`--search` is a shortcut for `--search-mode minimax`. `--simulations` sets the MCTS playouts per
+move (default 64) and `--subgraphs` averages the value head over that many randomly thinned graphs
+(default 1); both apply to either search mode.
 
 **Estimate the model's Elo vs Stockfish:**
 
 ```powershell
 python play.py --stockfish C:\path\to\stockfish.exe --model chessgnn.pt --elo 1320 --games 10
+python play.py --stockfish C:\path\to\stockfish.exe --model chessgnn.pt --elo 1320 --games 10 --search --depth 3
+python play.py --stockfish C:\path\to\stockfish.exe --model chessgnn.pt --elo 1320 --games 10 --search-mode mcts
 ```
+
+`play.py` takes the same search flags as `plays.py`.
 
 **Train (optional)** — expects a PGN of games:
 
 ```powershell
 python preprocess.py games.pgn --out data --sample-rate 0.1
 python train.py --data data --epochs 3 --save chessgnn.pt
+python train.py --data data --epochs 3 --save chessgnn.pt --distill-mode both
 ```
+
+`--distill-mode {minimax|mcts|both}` refines the policy and value heads with the output of the
+search every `--distill-every` supervised steps (default 50), over `--distill-boards` positions
+(default 8); leave it off for plain supervised training.
+
+If `plays.py` stops with `size mismatch ... Error(s) in loading state_dict`, the checkpoint predates
+the current architecture — rerun the training commands above to write a matching `chessgnn.pt`.
 
 The engine's helper modules live in the sibling folder `..\ours_gpu_extras`.
 
