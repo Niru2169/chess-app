@@ -200,6 +200,13 @@ python train.py --data data --epochs 3 --save chessgnn.pt --distill-mode both
 search every `--distill-every` supervised steps (default 50), over `--distill-boards` positions
 (default 8); leave it off for plain supervised training.
 
+Nothing is downloaded and no PGN ships with the repo: `preprocess.py` only reads the file you pass
+it, so the games are yours to supply. Any collection whose games carry a definite `Result` header
+works — a month of the free [Lichess open database](https://database.lichess.org) (`.pgn.zst`,
+uncompress first) is the usual choice. To merely watch the pipeline run, the upstream
+[ChessGNN](https://github.com/duckyies/ChessGNN) repo has a 2-game `tests/test.pgn`; with that little
+data pass a small `--batch-size`, since a couple of games yield only a few dozen positions.
+
 If `plays.py` stops with `size mismatch ... Error(s) in loading state_dict`, the checkpoint predates
 the current architecture — rerun the training commands above to write a matching `chessgnn.pt`.
 
