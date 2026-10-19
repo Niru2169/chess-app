@@ -5,7 +5,7 @@ This repository combines two pieces that together form the app:
 | Folder | What it is |
 | --- | --- |
 | [`autoChess/`](autoChess/) | **Django + HTMX web app** — match runner, live board, local hot‑seat play, Elo + BayesElo ratings with a leaderboard, and PGN export. |
-| [`BayesianELO-main/`](BayesianELO-main/) · upstream: [duckyies/BayesianELO](https://github.com/duckyies/BayesianELO) (BayesElo + `gnn-chess/`) · related: [duckyies/ChessGNN](https://github.com/duckyies/ChessGNN) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. Kudos to Ducky for the upstream BayesElo estimator and GNN this folder is built on. |
+| [`BayesianELO-main/`](BayesianELO-main/) · originally based on [duckyies/BayesianELO](https://github.com/duckyies/BayesianELO) (BayesElo + `gnn-chess/`) · related reading: [duckyies/ChessGNN](https://github.com/duckyies/ChessGNN) | **GNN chess engine** (PyTorch) — a graph neural network that plays chess, with training, top‑p (nucleus) move selection and an optional shallow search. Kudos to Ducky for the BayesElo estimator and GNN this folder was built from. |
 
 ---
 
@@ -55,7 +55,7 @@ colour, square colour, rank/file, en-passant), and the move policy is a softmax 
 - Make **configurations comparable**: the same engine at a different search depth is a different
   rated player, so the leaderboard can answer "is depth 8 actually stronger than depth 3?".
 - Keep the **web app dependency‑free**: the app reimplements the BayesElo fit
-  (`autoChess/arena/services/rating.py`) without `scipy`/`numpy`, while the upstream CLI tools in
+  (`autoChess/arena/services/rating.py`) without `scipy`/`numpy`, while the original CLI tools in
   `BayesianELO-main/` keep their scipy‑based fit for offline tournaments.
 
 ---
@@ -85,7 +85,8 @@ BayesianELO-main/              GNN engine — git submodule -> Niru2169/Bayesian
 
 ## Getting the code
 
-The GNN engine lives in a git **submodule** (our fork of Ducky's `BayesianELO`), so fetch it too:
+The GNN engine lives in a git **submodule** — our own repo,
+[`Niru2169/BayesianELO`](https://github.com/Niru2169/BayesianELO) — so fetch it too:
 
 ```powershell
 git clone --recurse-submodules https://github.com/Niru2169/chess-app.git
@@ -98,15 +99,14 @@ Already cloned without it? Initialise it in place:
 git submodule update --init
 ```
 
-To pick up later changes in the engine:
+To pick up later changes in the engine (after they are pushed to
+`Niru2169/BayesianELO`):
 
 ```powershell
-git submodule update --remote BayesianELO-main   # latest commit from our fork
+git submodule update --remote BayesianELO-main   # latest commit from our own repo
 ```
 
-Our fork tracks Ducky's upstream, so to pull *his* newer work: open
-<https://github.com/Niru2169/BayesianELO> → **Sync fork** → *Update branch*, then run the command
-above. Work on the engine inside `BayesianELO-main/` and commit/push it as its own repo.
+Work on the engine inside `BayesianELO-main/` and commit/push it as its own repo.
 
 ---
 
