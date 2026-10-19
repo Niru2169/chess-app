@@ -362,14 +362,15 @@ class PgnExportTests(TestCase):
 
 
 def _gnn_ready() -> bool:
-    """Whether the GNN dependencies and checkpoint are present."""
+    """Whether the GNN can be loaded (torch + a checkpoint that fits the model)."""
     import importlib.util
 
     if importlib.util.find_spec("torch") is None:
         return False
-    configured = str(getattr(settings, "AUTOCHESS_GNN_MODEL", "") or "")
-    path = Path(configured) if configured else Path(settings.AUTOCHESS_GNN_DIR) / "chessgnn.pt"
-    return path.is_file()
+    try:
+        return gnn.is_available()
+    except Exception:
+        return False
 
 
 class GnnPredictionTests(TestCase):

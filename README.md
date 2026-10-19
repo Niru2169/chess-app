@@ -127,9 +127,41 @@ python gnn-chess\preprocess.py ..\training_data\games.pgn --out data --sample-ra
 python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda
 ```
 
-`preprocess.py` writes resumable `.npz` shards (re-running skips shards that already exist) and
-`train.py` takes `--device cuda|cpu|xla`. The earlier GATEAU/MCTS experiments are parked on the
-`archive/gnn-training-2026-10-19` branch.
+`preprocess.py` writes resumable `.npz` shards (re-running skips shards that already exist,
+deduplicates positions within each chunk, and `--min-elo`/`--max-games`/`--seed` are available).
+`train.py` takes `--device cuda|cpu|xla` and the search/distillation flags below.
+
+#### Engine architecture
+
+The engine is a full Graph Network over the board graph (64 square nodes, piece-mobility edges):
+
+- **Edge features** — every directed edge carries a 14-dim geometric/directional vector
+  (rank/file offsets, Manhattan/Chebyshev distance, self-loop/knight-jump flags, 8-way compass).
+- **CNN stem** — a 2-layer 3×3 residual conv block on the 8×8 grid captures local spatial
+  patterns (pawn shields, adjacent squares) that have no mobility edge between them.
+- **GATEAU blocks** — 10 residual blocks of edge-feature-aware multi-head graph attention
+  (attention uses the `[e_ij, v_i, v_j]` triplet), with a global-to-node broadcast from the
+  board state vector in every block.
+- **Heads** — multi-task: `next_move` (policy over edges) and `final_result` (W/D/B) are the
+  primary heads; `next_piece_moved/captured` and `plies_till_end` are useful auxiliaries;
+  `legal_moves/captures` and the check heads are scaffold heads whose loss weight decays
+  with training progress.
+- **Search** — breadth-first minimax (depth 3/5/8) or lightweight virtual-loss batched PUCT
+  MCTS, with an optional subgraph-sampling value ensemble to reduce leaf variance.
+- **Distillation** — shallow-to-deep policy/value targets (Gumbel-minimax and/or MCTS visit
+  distributions) refine the network during training.
+
+```powershell
+# train with search distillation and subgraph-ensemble evaluation
+python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda `
+    --distill-mode both --distill-every 50 --distill-boards 8 --simulations 64 --subgraphs 2
+
+# play against Stockfish with MCTS + a subgraph ensemble
+python gnn-chess\play.py --stockfish stockfish.exe --model chessgnn.pt `
+    --search-mode mcts --simulations 64 --subgraphs 2
+```
+
+The earlier GATEAU/MCTS experiments are parked on the `archive/gnn-training-2026-10-19` branch.
 
 ---
 
