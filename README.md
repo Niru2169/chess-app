@@ -131,6 +131,27 @@ python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda
 deduplicates positions within each chunk, and `--min-elo`/`--max-games`/`--seed` are available).
 `train.py` takes `--device cuda|cpu|xla` and the search/distillation flags below.
 
+#### Dataset placement
+
+The training pipeline requires the **CCRL-4040.[1967497].pgn** file (≈2 GB, 1 967 497 games).
+
+- Extract it from `CCRL-4040.[1967497].pgn.7z` (or use the `.pgn` directly).
+- Place the `.pgn` file where the training scripts can find it. Common options:
+  * `training_data/CCRL-4040.[1967497].pgn` (relative to the repo root, listed in `.gitignore`).
+  * an absolute path passed to `preprocess.py`.
+- Run preprocess pointing at the file:
+
+```powershell
+cd BayesianELO-main
+python gnn-chess\preprocess.py ..\training_data\games.pgn --out data --sample-rate 0.1 --workers 20
+```
+
+If the `.pgn` lives elsewhere, supply its full path as the first argument to `preprocess.py`; the script opens any path Python can read.
+
+Do not rename or move the `.pgn` file without updating the path passed to `preprocess.py`, otherwise the preprocess/training steps will fail.
+
+`train.py` takes `--device cuda|cpu|xla` and the search/distillation flags below.
+
 ### Local / cloud training scripts
 
 For convenience, `laptop_train.ps1` (Windows, RTX 4060) and `linux_train.sh` (native Linux)
