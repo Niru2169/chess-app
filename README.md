@@ -131,6 +131,18 @@ python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda
 deduplicates positions within each chunk, and `--min-elo`/`--max-games`/`--seed` are available).
 `train.py` takes `--device cuda|cpu|xla` and the search/distillation flags below.
 
+### Local / cloud training scripts
+
+For convenience, `laptop_train.ps1` (Windows, RTX 4060) and `linux_train.sh` (native Linux)
+run preprocess + the 3 distill modes (`minimax`, `mcts`, `both`) sequentially;
+`gce_provision.sh` / `gce_train.sh` provision a GCE GPU VM. Override defaults with
+`-SampleRate`/`-Epochs`/`-BatchSize` (PowerShell) or `SAMPLE_RATE=`/`EPOCHS=` env vars (sh).
+
+While a run is going, `watch_train.ps1` (Windows) / `watch_train.sh` (Linux/macOS) tails its
+log and draws a live progress bar, ETA and losses. It is read-only and never touches the
+training process; Ctrl+C only closes the viewer. The run has to be writing to that file �?"
+launch with `Tee-Object` / `tee` (see each script's header).
+
 #### Engine architecture
 
 The engine is a full Graph Network over the board graph (64 square nodes, piece-mobility edges):
