@@ -75,7 +75,7 @@ foreach ($mode in @('minimax', 'mcts', 'both')) {
   & $py gnn-chess\train.py --data $shards --epochs $Epochs --batch-size $BatchSize `
        --device cuda --save (Join-Path $runs "model_$mode.pt") `
        --distill-mode $mode --distill-every $DistillEvery --distill-boards $DistillBoards `
-       --simulations $Simulations --subgraphs $Subgraphs
+       --simulations $Simulations --subgraphs $Subgraphs --ignore_duplicates
   if ($LASTEXITCODE -ne 0) { Say "  $mode FAILED (exit $LASTEXITCODE)" }
 }
 Pop-Location

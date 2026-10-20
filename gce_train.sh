@@ -114,6 +114,7 @@ echo "  GPUs available: $NGPU"
 launch() {
   local gpu="$1" mode="$2"
   CUDA_VISIBLE_DEVICES="$gpu" python gnn-chess/train.py \
+    --ignore_duplicates $IGNORE_DUPLICATES \
     --data "$SHARDS_DIR" \
     --epochs "$EPOCHS" --batch-size "$BATCH_SIZE" \
     --device cuda --save "$ENGINE_DIR/runs/model_${mode}.pt" \

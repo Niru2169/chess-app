@@ -24,6 +24,7 @@ DISTILL_EVERY="${DISTILL_EVERY:-300}"
 DISTILL_BOARDS="${DISTILL_BOARDS:-8}"
 SIMULATIONS="${SIMULATIONS:-32}"
 SUBGRAPHS="${SUBGRAPHS:-2}"
+IGNORE_DUPLICATES="${IGNORE_DUPLICATES:-}"
 
 echo "=== [1/5] system deps + NVIDIA driver ==="
 sudo apt-get update
@@ -92,6 +93,7 @@ cd "$ENGINE"
 for mode in minimax mcts both; do
   echo "--- $mode ---"
   python gnn-chess/train.py --data "$SHARDS" --epochs "$EPOCHS" --batch-size "$BATCH_SIZE" \
+    --ignore_duplicates $IGNORE_DUPLICATES \
     --device cuda --save "$RUNS/model_$mode.pt" \
     --distill-mode "$mode" --distill-every "$DISTILL_EVERY" \
     --distill-boards "$DISTILL_BOARDS" --simulations "$SIMULATIONS" --subgraphs "$SUBGRAPHS"
