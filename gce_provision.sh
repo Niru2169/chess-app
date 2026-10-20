@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # =============================================================================
-# gce_provision.sh — create a GPU VM for training, trying bigger configs first.
+# gce_provision.sh — create a GPU VM for training, trying the HIGHEST config
+# first and falling back to lower ones until one is available.
 #
 # A100 (a2-*) capacity is tight in many zones; L4 (g2-*) is far more available
-# and more than enough for this ~381k-param model. This tries, in order:
-#   1. g2-standard-48  4x L4   48 vCPU  192 GB  ~$3.07/hr  (3 trainings parallel)
-#   2. g2-standard-32  2x L4   32 vCPU  128 GB  ~$2.05/hr  (3 trainings parallel)
-#   3. g2-standard-16  1x L4   16 vCPU   64 GB  ~$1.02/hr  (3 trainings sequential)
-#   4. a2-highgpu-1g   1x A100 12 vCPU   85 GB  ~$3.67/hr  (3 trainings sequential)
+# and more than enough for this ~381k-param model. Order (most -> least powerful):
+#   a2-highgpu-8g   8x A100  96 vCPU  680 GB  ~$29.39/hr
+#   a2-highgpu-4g   4x A100  48 vCPU  340 GB  ~$14.69/hr
+#   a2-highgpu-2g   2x A100  24 vCPU  170 GB  ~$7.35/hr
+#   g2-standard-96  8x L4    96 vCPU  384 GB  ~$6.15/hr
+#   a2-highgpu-1g   1x A100  12 vCPU   85 GB  ~$3.67/hr
+#   g2-standard-48  4x L4    48 vCPU  192 GB  ~$3.07/hr
+#   g2-standard-32  2x L4    32 vCPU  128 GB  ~$2.05/hr
+#   g2-standard-16  1x L4    16 vCPU   64 GB  ~$1.02/hr
+#
+# The first config that provisions is kept (the highest one available), so if an
+# A100 zone has capacity you get the A100; otherwise you get the best L4.
 #
 # Usage:
 #   PROJECT=your-project-id bash gce_provision.sh
@@ -23,7 +31,17 @@ ZONES=(
   europe-west4-a asia-northeast3-a me-west1-a
 )
 
-MACHINES=(g2-standard-48 g2-standard-32 g2-standard-16 a2-highgpu-1g)
+# highest -> lowest
+MACHINES=(
+  a2-highgpu-8g
+  a2-highgpu-4g
+  a2-highgpu-2g
+  g2-standard-96
+  a2-highgpu-1g
+  g2-standard-48
+  g2-standard-32
+  g2-standard-16
+)
 
 for MT in "${MACHINES[@]}"; do
   for ZONE in "${ZONES[@]}"; do
