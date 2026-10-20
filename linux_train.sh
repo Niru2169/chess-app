@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# linux_train.sh — train the 3 distill modes on Linux (WSL2 or a Linux host).
+# linux_train.sh — train the 3 distill modes on NATIVE Linux (dual-boot).
 #
-# In WSL2 the GPU is the Windows NVIDIA driver (nvidia-smi works) and pip's
-# torch is the CUDA build. Same script works on a plain Linux box.
+# Installs the NVIDIA driver if needed, builds a venv, preprocesses the CCRL
+# dataset, and runs the 3 modes sequentially on the GPU.
 #
 #   bash linux_train.sh
 #   SAMPLE_RATE=0.05 EPOCHS=5 bash linux_train.sh
@@ -25,9 +25,25 @@ DISTILL_BOARDS="${DISTILL_BOARDS:-8}"
 SIMULATIONS="${SIMULATIONS:-32}"
 SUBGRAPHS="${SUBGRAPHS:-2}"
 
-echo "=== [1/5] system deps ==="
+echo "=== [1/5] system deps + NVIDIA driver ==="
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip git p7zip-full tmux
+sudo apt-get install -y python3-venv python3-pip git p7zip-full tmux curl
+
+if ! command -v nvidia-smi >/dev/null 2>&1; then
+  echo "  installing NVIDIA driver..."
+  sudo apt-get install -y linux-headers-"$(uname -r)"
+  if grep -qi ubuntu /etc/os-release; then
+    CODENAME="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-noble}")"
+    wget -q "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb" -O /tmp/cuda-keyring.deb
+  else
+    wget -q "https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb" -O /tmp/cuda-keyring.deb
+  fi
+  sudo dpkg -i /tmp/cuda-keyring.deb
+  sudo apt-get update
+  sudo apt-get install -y cuda-drivers
+  echo "  driver installed; if nvidia-smi still fails, reboot once."
+fi
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 echo "=== [2/5] repo ==="
 if [ ! -d "$REPO/.git" ]; then
@@ -39,12 +55,11 @@ echo "  engine: $(git -C "$ENGINE" rev-parse --abbrev-ref HEAD) @ $(git -C "$ENG
 
 echo "=== [3/5] dataset ==="
 mkdir -p "$DATA_DIR"
-# the Windows drive is /mnt/d/... in WSL; search the common spots (brackets in the
-# filename mean we match loosely)
-SEARCH=("$DATA_DIR" "$HOME" "/mnt/d/ArchivedLargeStuff/Documents/chess")
-PGN="$(find "${SEARCH[@]}" -maxdepth 3 -name 'CCRL-4040*.pgn' 2>/dev/null | head -n1 || true)"
+# search the Linux home plus any mounted Windows partition (/mnt, /media, /run/media)
+SEARCH=("$DATA_DIR" "$HOME" /mnt/* /media/* /run/media/*/*)
+PGN="$(find "${SEARCH[@]}" -maxdepth 4 -name 'CCRL-4040*.pgn' 2>/dev/null | head -n1 || true)"
 if [ -z "$PGN" ]; then
-  ARCHIVE="$(find "${SEARCH[@]}" -maxdepth 3 -name 'CCRL-4040*.7z' 2>/dev/null | head -n1 || true)"
+  ARCHIVE="$(find "${SEARCH[@]}" -maxdepth 4 -name 'CCRL-4040*.7z' 2>/dev/null | head -n1 || true)"
   if [ -n "$ARCHIVE" ]; then
     echo "  extracting $ARCHIVE"
     7z x "$ARCHIVE" -o"$DATA_DIR" -y >/dev/null
@@ -52,8 +67,9 @@ if [ -z "$PGN" ]; then
   fi
 fi
 if [ -z "$PGN" ]; then
-  echo "  dataset not found. Copy it in, e.g.:"
-  echo "    cp '/mnt/d/.../CCRL-4040.[1967497].pgn' '$DATA_DIR/'"
+  echo "  dataset not found. Mount the Windows partition and copy it in, e.g.:"
+  echo "    sudo mkdir -p /mnt/win && sudo mount /dev/nvme0n1p3 /mnt/win   # your Windows partition"
+  echo "    cp '/mnt/win/ArchivedLargeStuff/Documents/chess/CCRL-4040.[1967497].pgn' '$DATA_DIR/'"
   exit 1
 fi
 echo "  dataset: $PGN ($(du -h "$PGN" | cut -f1))"
