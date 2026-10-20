@@ -189,6 +189,9 @@ The engine is a full Graph Network over the board graph (64 square nodes, piece-
 python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda `
     --distill-mode both --distill-every 50 --distill-boards 8 --simulations 64 --subgraphs 2
 
+# drop duplicate board positions during training
+python gnn-chess\train.py --data data --epochs 3 --batch-size 256 --device cuda --ignore_duplicates
+
 # play against Stockfish with MCTS + a subgraph ensemble
 python gnn-chess\play.py --stockfish stockfish.exe --model chessgnn.pt `
     --search-mode mcts --simulations 64 --subgraphs 2
