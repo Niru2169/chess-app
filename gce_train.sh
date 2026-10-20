@@ -29,7 +29,7 @@ DISTILL_EVERY="${DISTILL_EVERY:-300}"
 DISTILL_BOARDS="${DISTILL_BOARDS:-8}"
 SIMULATIONS="${SIMULATIONS:-32}"
 SUBGRAPHS="${SUBGRAPHS:-2}"
-PREPROCESS_WORKERS="${PREPROCESS_WORKERS:-64}"
+PREPROCESS_WORKERS="${PREPROCESS_WORKERS:-$(( $(nproc) - 4 ))}"
 
 # ----------------------------- 1. NVIDIA driver ------------------------------
 echo "=== [1/7] NVIDIA driver ==="
@@ -104,9 +104,12 @@ python "$ENGINE_DIR/gnn-chess/preprocess.py" "$PGN" --out "$SHARDS_DIR" \
 echo "  shards: $(find "$SHARDS_DIR" -name 'shard_*.npz' | wc -l)"
 
 # ----------------------------- 7. train 3 models ------------------------------
-echo "=== [7/7] train 3 models in parallel (minimax / mcts / both) ==="
+echo "=== [7/7] train 3 models ==="
 cd "$ENGINE_DIR"
 mkdir -p "$ENGINE_DIR/runs"
+
+NGPU="$(nvidia-smi -L 2>/dev/null | wc -l || echo 0)"
+echo "  GPUs available: $NGPU"
 
 launch() {
   local gpu="$1" mode="$2"
@@ -123,13 +126,21 @@ launch() {
   return "$rc"
 }
 
-launch 0 minimax & p0=$!
-launch 1 mcts    & p1=$!
-launch 2 both    & p2=$!
 rc=0
-wait "$p0" || rc=1
-wait "$p1" || rc=1
-wait "$p2" || rc=1
+if [ "$NGPU" -ge 3 ]; then
+  echo "  running minimax / mcts / both in parallel on GPUs 0,1,2"
+  launch 0 minimax & p0=$!
+  launch 1 mcts    & p1=$!
+  launch 2 both    & p2=$!
+  wait "$p0" || rc=1
+  wait "$p1" || rc=1
+  wait "$p2" || rc=1
+else
+  echo "  fewer than 3 GPUs - running the 3 modes sequentially on GPU 0"
+  launch 0 minimax || rc=1
+  launch 0 mcts    || rc=1
+  launch 0 both    || rc=1
+fi
 
 echo "=== done. checkpoints: ==="
 ls -lh "$ENGINE_DIR"/runs/*.pt
